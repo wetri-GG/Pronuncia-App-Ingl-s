@@ -11,49 +11,74 @@ class TopicsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final temas = context.watch<DemoStudyController>().temas;
+    final controller = context.watch<DemoStudyController>();
+    final temas = controller.temas;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Temas'),
         automaticallyImplyLeading: false,
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: temas.isEmpty
-                ? const Center(child: Text('Aun no hay temas.'))
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                    itemCount: temas.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final tema = temas[index];
-                      final controller = context.read<DemoStudyController>();
-                      return TopicTile(
-                        tema: tema,
-                        wordCount: controller.palabrasDe(tema).length,
-                        accuracy: controller.porcentajeAcierto(tema),
-                        onTap: () => _openTopic(context, tema),
-                      );
-                    },
+      body: controller.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : controller.error != null
+          ? _buildLoadError(context, controller)
+          : Column(
+              children: [
+                Expanded(
+                  child: temas.isEmpty
+                      ? const Center(child: Text('Aun no hay temas.'))
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                          itemCount: temas.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final tema = temas[index];
+                            return TopicTile(
+                              tema: tema,
+                              wordCount: controller.palabrasDe(tema).length,
+                              accuracy: controller.porcentajeAcierto(tema),
+                              onTap: () => _openTopic(context, tema),
+                            );
+                          },
+                        ),
+                ),
+                SafeArea(
+                  top: false,
+                  minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: FilledButton.icon(
+                      onPressed: () => _showAddTopicDialog(context),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Añadir tema'),
+                    ),
                   ),
-          ),
-          SafeArea(
-            top: false,
-            minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-            child: SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: FilledButton.icon(
-                onPressed: () => _showAddTopicDialog(context),
-                icon: const Icon(Icons.add),
-                label: const Text('Añadir tema'),
-              ),
+                ),
+              ],
             ),
-          ),
-        ],
+    );
+  }
+
+  Widget _buildLoadError(BuildContext context, DemoStudyController controller) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('No se pudieron cargar los temas.'),
+            const SizedBox(height: 8),
+            Text(controller.error.toString(), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: controller.cargar,
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -70,7 +95,14 @@ class TopicsScreen extends StatelessWidget {
       builder: (_) => const _AddTopicDialog(),
     );
     if (nombre == null || !context.mounted) return;
-    context.read<DemoStudyController>().agregarTema(nombre);
+    try {
+      await context.read<DemoStudyController>().agregarTema(nombre);
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo guardar el tema: $error')),
+      );
+    }
   }
 }
 

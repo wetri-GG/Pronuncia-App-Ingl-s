@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'controllers/demo_study_controller.dart';
+import 'data/database_helper.dart';
 import 'views/topics_screen.dart';
 
 void main() {
@@ -9,14 +12,25 @@ void main() {
 }
 
 class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+  const MainApp({super.key, this.databaseHelper, this.studyController});
+
+  final DatabaseHelper? databaseHelper;
+  final DemoStudyController? studyController;
 
   @override
   Widget build(BuildContext context) {
     const seedColor = Color(0xFF2E7055);
 
-    return ChangeNotifierProvider(
-      create: (_) => DemoStudyController(),
+    return ChangeNotifierProvider<DemoStudyController>(
+      create: (_) {
+        final controller =
+            studyController ??
+            DemoStudyController(databaseHelper: databaseHelper);
+        if (studyController == null) {
+          unawaited(controller.cargar());
+        }
+        return controller;
+      },
       child: MaterialApp(
         title: 'Pronuncia',
         debugShowCheckedModeBanner: false,

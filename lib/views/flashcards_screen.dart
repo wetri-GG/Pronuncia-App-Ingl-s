@@ -19,6 +19,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   int _currentIndex = 0;
   int _knownInSession = 0;
   bool _isFlipped = false;
+  bool _isSavingAnswer = false;
 
   @override
   Widget build(BuildContext context) {
@@ -76,8 +77,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                           children: [
                             Expanded(
                               child: OutlinedButton.icon(
-                                onPressed: () =>
-                                    _answer(words[_currentIndex], known: false),
+                                onPressed: _isSavingAnswer
+                                    ? null
+                                    : () => _answer(
+                                        words[_currentIndex],
+                                        known: false,
+                                      ),
                                 icon: const Icon(Icons.close),
                                 label: const Text('No lo sé'),
                                 style: OutlinedButton.styleFrom(
@@ -88,8 +93,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: FilledButton.icon(
-                                onPressed: () =>
-                                    _answer(words[_currentIndex], known: true),
+                                onPressed: _isSavingAnswer
+                                    ? null
+                                    : () => _answer(
+                                        words[_currentIndex],
+                                        known: true,
+                                      ),
                                 icon: const Icon(Icons.check),
                                 label: const Text('Lo sé'),
                                 style: FilledButton.styleFrom(
@@ -130,9 +139,21 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     );
   }
 
-  void _answer(Palabra palabra, {required bool known}) {
+  Future<void> _answer(Palabra palabra, {required bool known}) async {
+    setState(() => _isSavingAnswer = true);
     final controller = context.read<DemoStudyController>();
-    controller.registrarRespuesta(palabra, conocida: known);
+    try {
+      await controller.registrarRespuesta(palabra, conocida: known);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo guardar la respuesta: $error')),
+      );
+      setState(() => _isSavingAnswer = false);
+      return;
+    }
+    if (!mounted) return;
+
     if (known) _knownInSession++;
 
     final words = controller.palabrasDe(widget.tema);
@@ -140,10 +161,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
       setState(() {
         _currentIndex++;
         _isFlipped = false;
+        _isSavingAnswer = false;
       });
       return;
     }
 
+    setState(() => _isSavingAnswer = false);
     _showSessionResult(total: words.length);
   }
 

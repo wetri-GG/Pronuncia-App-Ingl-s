@@ -17,11 +17,16 @@ Algunos plugins de voz, camara, manos y realidad aumentada tienen soporte limita
 ```text
 lib/
   controllers/  # Estado y logica de presentacion (ChangeNotifier)
-  data/         # DatabaseHelper y repositorios SQLite
+  data/         # DatabaseHelper y repositorios CRUD SQLite
   models/       # Modelos Tema, Palabra e Intento
   views/        # Pantallas de la aplicacion
   widgets/      # Componentes reutilizables
 ```
+
+Las pantallas de temas y tarjetas usan `DemoStudyController` para cargar los
+datos desde SQLite mediante los repositorios. En una base nueva se guardan los
+datos de ejemplo que antes estaban solo en memoria; los temas que se agregan y
+las respuestas de estudio tambien quedan persistidos.
 
 ## Dependencias
 
