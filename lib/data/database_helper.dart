@@ -10,7 +10,7 @@ class DatabaseHelper {
   static bool _ffiFactoryConfigured = false;
 
   static const _databaseName = 'pronuncia.db';
-  static const _databaseVersion = 1;
+  static const _databaseVersion = 2;
 
   final String? databasePath;
   Future<Database>? _database;
@@ -53,9 +53,17 @@ class DatabaseHelper {
             fecha TEXT NOT NULL,
             acierto INTEGER NOT NULL,
             texto_reconocido TEXT,
+            origen TEXT NOT NULL DEFAULT 'tarjetas',
             FOREIGN KEY (palabra_id) REFERENCES palabras(id) ON DELETE CASCADE
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            "ALTER TABLE intentos ADD COLUMN origen TEXT NOT NULL DEFAULT 'tarjetas'",
+          );
+        }
       },
     );
   }

@@ -12,16 +12,16 @@ class Palabra {
   final String espanol;
 
   Map<String, Object?> toMap() => {
-        'id': id,
-        'tema_id': temaId,
-        'ingles': ingles,
-        'espanol': espanol,
-      };
+    'id': id,
+    'tema_id': temaId,
+    'ingles': ingles,
+    'espanol': espanol,
+  };
 
   factory Palabra.fromMap(Map<String, Object?> map) => Palabra(
-        id: map['id'] as int?,
-        temaId: map['tema_id'] as int,
-        ingles: map['ingles'] as String,
-        espanol: map['espanol'] as String,
-      );
+    id: map['id'] as int?,
+    temaId: map['tema_id'] as int,
+    ingles: map['ingles'] as String,
+    espanol: map['espanol'] as String,
+  );
 }

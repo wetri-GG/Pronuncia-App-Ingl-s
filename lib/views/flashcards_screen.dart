@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/demo_study_controller.dart';
@@ -20,6 +21,13 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   int _knownInSession = 0;
   bool _isFlipped = false;
   bool _isSavingAnswer = false;
+  final FlutterTts _tts = FlutterTts();
+
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +65,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                       child: FlipCard(
                         palabra: words[_currentIndex],
                         isFlipped: _isFlipped,
+                        onSpeak: () => _speak(words[_currentIndex].ingles),
                         onFlip: () => setState(() {
                           _isFlipped = !_isFlipped;
                         }),
@@ -115,6 +124,18 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
               ),
             ),
     );
+  }
+
+  Future<void> _speak(String word) async {
+    try {
+      await _tts.setLanguage('en-US');
+      await _tts.speak(word);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo reproducir el audio: $error')),
+      );
+    }
   }
 
   Widget _buildEmptyState(BuildContext context) {

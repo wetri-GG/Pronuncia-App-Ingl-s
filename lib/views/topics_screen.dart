@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../controllers/demo_study_controller.dart';
 import '../models/tema.dart';
 import '../widgets/topic_tile.dart';
-import 'flashcards_screen.dart';
+import 'word_list_screen.dart';
 
 class TopicsScreen extends StatelessWidget {
   const TopicsScreen({super.key});
@@ -15,10 +15,7 @@ class TopicsScreen extends StatelessWidget {
     final temas = controller.temas;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Temas'),
-        automaticallyImplyLeading: false,
-      ),
+      appBar: AppBar(title: const Text('Temas')),
       body: controller.isLoading
           ? const Center(child: CircularProgressIndicator())
           : controller.error != null
@@ -84,9 +81,9 @@ class TopicsScreen extends StatelessWidget {
   }
 
   void _openTopic(BuildContext context, Tema tema) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => FlashcardsScreen(tema: tema)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => WordListScreen(tema: tema)));
   }
 
   Future<void> _showAddTopicDialog(BuildContext context) async {

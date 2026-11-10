@@ -16,12 +16,7 @@ void main() {
   });
 
   test('Palabra se convierte a mapa y vuelve', () {
-    const palabra = Palabra(
-      id: 2,
-      temaId: 1,
-      ingles: 'cat',
-      espanol: 'gato',
-    );
+    const palabra = Palabra(id: 2, temaId: 1, ingles: 'cat', espanol: 'gato');
 
     final map = palabra.toMap();
     expect(map['tema_id'], 1);
@@ -43,6 +38,7 @@ void main() {
       fecha: fecha,
       acierto: true,
       textoReconocido: 'cat',
+      origen: 'voz',
     );
 
     final map = intento.toMap();
@@ -50,6 +46,7 @@ void main() {
     expect(map['fecha'], fecha.toIso8601String());
     expect(map['acierto'], 1);
     expect(map['texto_reconocido'], 'cat');
+    expect(map['origen'], 'voz');
 
     final recuperado = Intento.fromMap(map);
     expect(recuperado.id, 3);
@@ -57,5 +54,6 @@ void main() {
     expect(recuperado.fecha, fecha);
     expect(recuperado.acierto, isTrue);
     expect(recuperado.textoReconocido, 'cat');
+    expect(recuperado.origen, 'voz');
   });
 }

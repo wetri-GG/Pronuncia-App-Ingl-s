@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'controllers/demo_study_controller.dart';
 import 'data/database_helper.dart';
-import 'views/topics_screen.dart';
+import 'views/home_screen.dart';
 
 void main() {
   runApp(const MainApp());
@@ -73,7 +73,7 @@ class MainApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const TopicsScreen(),
+        home: const HomeScreen(),
       ),
     );
   }

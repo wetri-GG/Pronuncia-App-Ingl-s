@@ -9,11 +9,13 @@ class FlipCard extends StatefulWidget {
     super.key,
     required this.palabra,
     required this.isFlipped,
+    required this.onSpeak,
     required this.onFlip,
   });
 
   final Palabra palabra;
   final bool isFlipped;
+  final VoidCallback onSpeak;
   final VoidCallback onFlip;
 
   @override
@@ -74,6 +76,8 @@ class _FlipCardState extends State<FlipCard>
                 label: showTranslation
                     ? widget.palabra.espanol
                     : widget.palabra.ingles,
+                showAudio: !showTranslation,
+                onSpeak: widget.onSpeak,
               ),
             ),
           );
@@ -84,9 +88,15 @@ class _FlipCardState extends State<FlipCard>
 }
 
 class _CardFace extends StatelessWidget {
-  const _CardFace({required this.label});
+  const _CardFace({
+    required this.label,
+    required this.showAudio,
+    required this.onSpeak,
+  });
 
   final String label;
+  final bool showAudio;
+  final VoidCallback onSpeak;
 
   @override
   Widget build(BuildContext context) {
@@ -105,16 +115,39 @@ class _CardFace extends StatelessWidget {
         ],
       ),
       alignment: Alignment.center,
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-            color: const Color(0xFF184B37),
-            fontWeight: FontWeight.w700,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 72),
+            child: Center(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                  color: const Color(0xFF184B37),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ),
-        ),
+          if (showAudio)
+            Positioned(
+              bottom: 18,
+              child: Material(
+                color: const Color(0xFFE9F1ED),
+                shape: const CircleBorder(),
+                child: IconButton(
+                  tooltip: 'Escuchar pronunciación en inglés',
+                  onPressed: onSpeak,
+                  icon: const Icon(
+                    Icons.volume_up_rounded,
+                    color: Color(0xFF39775D),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

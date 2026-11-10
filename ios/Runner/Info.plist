@@ -24,6 +24,12 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Pronuncia usa la cámara para reconocer objetos, contar dedos y practicar poses.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Pronuncia usa el micrófono para escuchar tu pronunciación en inglés.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Pronuncia convierte tu voz en texto para comprobar las palabras que practicas.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

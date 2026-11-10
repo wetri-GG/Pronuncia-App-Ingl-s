@@ -32,8 +32,61 @@ class DemoStudyController extends ChangeNotifier {
 
   List<Tema> get temas => List.unmodifiable(_temas);
 
+  List<Palabra> get todasLasPalabras => List.unmodifiable(
+    _temas.expand((tema) => _palabrasPorTema[tema.id] ?? const <Palabra>[]),
+  );
+
+  List<Intento> get todosLosIntentos =>
+      List.unmodifiable(_intentosPorTema.values.expand((intentos) => intentos));
+
   List<Palabra> palabrasDe(Tema tema) =>
       List.unmodifiable(_palabrasPorTema[tema.id] ?? const []);
+
+  Tema? temaPorId(int id) {
+    for (final tema in _temas) {
+      if (tema.id == id) return tema;
+    }
+    return null;
+  }
+
+  Palabra? palabraPorIngles(String ingles) {
+    for (final palabra in todasLasPalabras) {
+      if (palabra.ingles.toLowerCase() == ingles.toLowerCase()) {
+        return palabra;
+      }
+    }
+    return null;
+  }
+
+  List<({Palabra palabra, int fallos})> get palabrasMasFalladas {
+    final fallos = <int, int>{};
+    for (final intento in todosLosIntentos.where(
+      (intento) => !intento.acierto,
+    )) {
+      fallos.update(intento.palabraId, (count) => count + 1, ifAbsent: () => 1);
+    }
+
+    return fallos.entries
+        .map((entry) {
+          final palabra = todasLasPalabras.where(
+            (palabra) => palabra.id == entry.key,
+          );
+          return palabra.isEmpty
+              ? null
+              : (palabra: palabra.first, fallos: entry.value);
+        })
+        .whereType<({Palabra palabra, int fallos})>()
+        .toList()
+      ..sort((left, right) => right.fallos.compareTo(left.fallos));
+  }
+
+  int get totalAciertos =>
+      todosLosIntentos.where((intento) => intento.acierto).length;
+
+  int get totalIntentos => todosLosIntentos.length;
+
+  int get porcentajeGlobal =>
+      totalIntentos == 0 ? 0 : (totalAciertos * 100 / totalIntentos).round();
 
   int porcentajeAcierto(Tema tema) {
     final intentos = _intentosPorTema[tema.id] ?? const [];
@@ -52,8 +105,26 @@ class DemoStudyController extends ChangeNotifier {
       var temas = await _temaRepository.obtenerTodos();
       if (temas.isEmpty) {
         await _crearDatosIniciales();
-        temas = await _temaRepository.obtenerTodos();
       }
+      await _asegurarTemaConPalabras('Números', const [
+        ('Zero', 'Cero'),
+        ('One', 'Uno'),
+        ('Two', 'Dos'),
+        ('Three', 'Tres'),
+        ('Four', 'Cuatro'),
+        ('Five', 'Cinco'),
+        ('Six', 'Seis'),
+        ('Seven', 'Siete'),
+        ('Eight', 'Ocho'),
+        ('Nine', 'Nueve'),
+        ('Ten', 'Diez'),
+      ]);
+      await _asegurarTemaConPalabras('Simon Says', const [
+        ('Arms up', 'Brazos arriba'),
+        ('Left arm', 'Brazo izquierdo'),
+        ('Right arm', 'Brazo derecho'),
+      ]);
+      temas = await _temaRepository.obtenerTodos();
 
       final palabras = await _palabraRepository.obtenerTodos();
       final intentos = await _intentoRepository.obtenerTodos();
@@ -93,9 +164,41 @@ class DemoStudyController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> agregarPalabra({
+    required int temaId,
+    required String ingles,
+    required String espanol,
+  }) async {
+    final tema = temaPorId(temaId);
+    if (tema == null) {
+      throw ArgumentError('No existe el tema seleccionado.');
+    }
+
+    final limpiaIngles = ingles.trim();
+    final limpiaEspanol = espanol.trim();
+    if (limpiaIngles.isEmpty || limpiaEspanol.isEmpty) {
+      throw ArgumentError('La palabra y su traducción son obligatorias.');
+    }
+
+    final id = await _palabraRepository.crear(
+      Palabra(temaId: temaId, ingles: limpiaIngles, espanol: limpiaEspanol),
+    );
+    _palabrasPorTema[temaId]!.add(
+      Palabra(
+        id: id,
+        temaId: temaId,
+        ingles: limpiaIngles,
+        espanol: limpiaEspanol,
+      ),
+    );
+    notifyListeners();
+  }
+
   Future<void> registrarRespuesta(
     Palabra palabra, {
     required bool conocida,
+    String origen = 'tarjetas',
+    String? textoReconocido,
   }) async {
     final palabraId = palabra.id;
     if (palabraId == null) {
@@ -108,6 +211,8 @@ class DemoStudyController extends ChangeNotifier {
       palabraId: palabraId,
       fecha: DateTime.now(),
       acierto: conocida,
+      textoReconocido: textoReconocido,
+      origen: origen,
     );
     final id = await _intentoRepository.crear(intento);
     final intentos = _intentosPorTema[palabra.temaId];
@@ -120,6 +225,8 @@ class DemoStudyController extends ChangeNotifier {
         palabraId: intento.palabraId,
         fecha: intento.fecha,
         acierto: intento.acierto,
+        textoReconocido: intento.textoReconocido,
+        origen: intento.origen,
       ),
     );
     notifyListeners();
@@ -142,6 +249,29 @@ class DemoStudyController extends ChangeNotifier {
       ('Blue', 'Azul'),
       ('Red', 'Rojo'),
     ], correctAnswers: 3);
+  }
+
+  Future<void> _asegurarTemaConPalabras(
+    String nombre,
+    List<(String, String)> traducciones,
+  ) async {
+    final existente = (await _temaRepository.obtenerTodos()).where(
+      (tema) => tema.nombre == nombre,
+    );
+    if (existente.isEmpty) {
+      await _crearTemaInicial(nombre, traducciones, correctAnswers: 0);
+      return;
+    }
+
+    final tema = existente.first;
+    final palabras = await _palabraRepository.obtenerPorTema(tema.id!);
+    final existentes = palabras.map((palabra) => palabra.ingles.toLowerCase());
+    for (final (ingles, espanol) in traducciones) {
+      if (existentes.contains(ingles.toLowerCase())) continue;
+      await _palabraRepository.crear(
+        Palabra(temaId: tema.id!, ingles: ingles, espanol: espanol),
+      );
+    }
   }
 
   Future<void> _crearTemaInicial(

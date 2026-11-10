@@ -9,6 +9,7 @@ import 'package:pronuncia/data/tema_repository.dart';
 import 'package:pronuncia/models/intento.dart';
 import 'package:pronuncia/models/palabra.dart';
 import 'package:pronuncia/models/tema.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
   late Directory directorioTemporal;
@@ -51,6 +52,7 @@ void main() {
         fecha: fecha,
         acierto: true,
         textoReconocido: 'cat',
+        origen: 'voz',
       ),
     );
 
@@ -67,6 +69,7 @@ void main() {
       [palabraId, otraPalabraId],
     );
     expect((await intentoRepository.obtenerPorId(intentoId))?.fecha, fecha);
+    expect((await intentoRepository.obtenerPorId(intentoId))?.origen, 'voz');
     expect(
       (await intentoRepository.obtenerPorPalabra(palabraId)),
       hasLength(1),
@@ -145,5 +148,61 @@ void main() {
       ),
       throwsArgumentError,
     );
+  });
+
+  test('la migracion conserva intentos de una base version 1', () async {
+    final oldDatabasePath = join(directorioTemporal.path, 'old-version.db');
+    final oldDatabase = await databaseFactoryFfi.openDatabase(
+      oldDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 1,
+        onCreate: (db, version) async {
+          await db.execute(
+            'CREATE TABLE temas (id INTEGER PRIMARY KEY, nombre TEXT NOT NULL)',
+          );
+          await db.execute('''
+            CREATE TABLE palabras (
+              id INTEGER PRIMARY KEY,
+              tema_id INTEGER NOT NULL,
+              ingles TEXT NOT NULL,
+              espanol TEXT NOT NULL
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE intentos (
+              id INTEGER PRIMARY KEY,
+              palabra_id INTEGER NOT NULL,
+              fecha TEXT NOT NULL,
+              acierto INTEGER NOT NULL,
+              texto_reconocido TEXT
+            )
+          ''');
+          await db.insert('temas', {'id': 1, 'nombre': 'Animales'});
+          await db.insert('palabras', {
+            'id': 1,
+            'tema_id': 1,
+            'ingles': 'dog',
+            'espanol': 'perro',
+          });
+          await db.insert('intentos', {
+            'id': 1,
+            'palabra_id': 1,
+            'fecha': DateTime.utc(2026).toIso8601String(),
+            'acierto': 1,
+            'texto_reconocido': null,
+          });
+        },
+      ),
+    );
+    await oldDatabase.close();
+
+    final migratedHelper = DatabaseHelper(databasePath: oldDatabasePath);
+    final migratedAttempts = await IntentoRepository(migratedHelper)
+        .obtenerTodos();
+
+    expect(migratedAttempts, hasLength(1));
+    expect(migratedAttempts.single.acierto, isTrue);
+    expect(migratedAttempts.single.origen, 'tarjetas');
+    await migratedHelper.close();
   });
 }
