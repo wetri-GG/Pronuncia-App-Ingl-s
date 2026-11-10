@@ -40,9 +40,37 @@ lib/
 12. Camara con reconocimiento de imagen, etiquetas alternativas y modo de
     realidad aumentada.
 
-Los temas, palabras e intentos se guardan en SQLite. El esquema version 2
-incluye el origen del intento (`tarjetas`, `voz`, `dedos` o `pose`) y migra las
-bases existentes sin perder sus intentos.
+Los temas, palabras e intentos se guardan en SQLite. Una instalación nueva
+incluye temas y vocabulario inicial para poder practicar, pero no incluye
+intentos: las estadísticas empiezan en cero y se actualizan al realizar
+actividades. Los usuarios pueden añadir sus propios temas y palabras. Las
+actividades de dedos y Simon Says crean solo la palabra auxiliar correspondiente
+cuando se guarda el primer intento, no al abrir la app. El esquema version 4
+incluye el origen del intento (`tarjetas`, `voz`, `dedos` o `pose`), migra las
+bases existentes y restaura el catálogo inicial en instalaciones que habían
+recibido una versión sin esos temas, sin crear intentos ficticios.
+
+### Persistencia de actividades NUI
+
+Cada resultado de una actividad se guarda como una fila de `intentos`, ligada
+a la palabra practicada mediante `palabra_id`. `origen` identifica la
+actividad: `tarjetas` para autoevaluación, `voz` para práctica oral, `dedos`
+para conteo manual o detectado y `pose` para Simon Says. La práctica oral
+también guarda el texto reconocido en `texto_reconocido`; el resto de
+actividades deja ese campo nulo. La conversación/traducción no se guarda como
+intento de vocabulario.
+
+`acierto` representa el resultado que comunica cada actividad: autoevaluación
+en tarjetas, comparación de la respuesta en voz, coincidencia de pose o
+finalización del ejercicio de dedos. En el conteo de dedos el resultado se
+registra actualmente como acierto al guardar el número; no mide si el alumno
+contestó correctamente a una pregunta independiente.
+
+Se persiste solo el dato necesario para el historial y las estadísticas: no se
+guardan grabaciones de voz, imágenes ni fotogramas de cámara. Las consultas de
+estadísticas agregan `temas`, `palabras` e `intentos` con `JOIN`: el porcentaje
+por tema conserva también los temas sin intentos, y la lista de palabras más
+falladas cuenta solo intentos con `acierto = 0`.
 
 ## Compatibilidad de vision
 

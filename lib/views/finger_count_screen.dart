@@ -270,15 +270,15 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
 
   Future<void> _saveAttempt() async {
     final english = _numberInEnglish(_selectedCount);
-    final word = context.read<DemoStudyController>().palabraPorIngles(english);
-    if (word == null) {
-      _showMessage('No existe una tarjeta de vocabulario para $english.');
-      return;
-    }
-
     setState(() => _isSaving = true);
     try {
-      await context.read<DemoStudyController>().registrarRespuesta(
+      final controller = context.read<DemoStudyController>();
+      final word = await controller.obtenerOCrearPalabraActividad(
+        temaNombre: 'Números',
+        ingles: english,
+        espanol: _numberInSpanish(_selectedCount),
+      );
+      await controller.registrarRespuesta(
         word,
         conocida: true,
         origen: 'dedos',

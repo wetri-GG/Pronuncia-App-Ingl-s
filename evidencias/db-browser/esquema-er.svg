@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="760" viewBox="0 0 1500 760" role="img" aria-labelledby="title description">
+  <title id="title">Esquema entidad-relacion de Pronuncia</title>
+  <desc id="description">Diagrama SQLite con las entidades temas, palabras e intentos, relaciones uno a muchos y borrado en cascada.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f5f8f6; }
+      .title { font: 700 30px "Segoe UI", Arial, sans-serif; fill: #173c2c; }
+      .subtitle { font: 16px "Segoe UI", Arial, sans-serif; fill: #52665b; }
+      .card { fill: #ffffff; stroke: #cbd9d0; stroke-width: 2; }
+      .header { fill: #276344; }
+      .entity { font: 700 21px "Segoe UI", Arial, sans-serif; fill: #ffffff; }
+      .field { font: 16px "Segoe UI", Arial, sans-serif; fill: #24352b; }
+      .key { font: 700 14px "Segoe UI", Arial, sans-serif; fill: #276344; }
+      .relation { stroke: #276344; stroke-width: 3; fill: none; }
+      .relation-label { font: 600 14px "Segoe UI", Arial, sans-serif; fill: #276344; }
+      .cardinality { font: 700 14px "Segoe UI", Arial, sans-serif; fill: #173c2c; }
+      .note { font: 15px "Segoe UI", Arial, sans-serif; fill: #52665b; }
+      .rule { stroke: #e0e9e3; stroke-width: 1; }
+    </style>
+  </defs>
+  <rect class="bg" width="1500" height="760" rx="18"/>
+  <text class="title" x="70" y="76">Modelo entidad-relacion · Pronuncia</text>
+  <text class="subtitle" x="70" y="108">Base de datos local SQLite · Claves primarias (PK), claves foraneas (FK) y cardinalidades</text>
+
+  <g>
+    <rect class="card" x="70" y="230" width="360" height="330" rx="12"/>
+    <path class="header" d="M82 230h336a12 12 0 0 1 12 12v48H70v-48a12 12 0 0 1 12-12z"/>
+    <text class="entity" x="96" y="271">temas</text>
+    <text class="key" x="96" y="324">PK</text>
+    <text class="field" x="146" y="324">id · INTEGER AUTOINCREMENT</text>
+    <line class="rule" x1="94" y1="344" x2="406" y2="344"/>
+    <text class="field" x="96" y="382">nombre · TEXT NOT NULL</text>
+    <text class="note" x="96" y="518">Categoria del vocabulario</text>
+  </g>
+
+  <g>
+    <rect class="card" x="570" y="230" width="360" height="330" rx="12"/>
+    <path class="header" d="M582 230h336a12 12 0 0 1 12 12v48H570v-48a12 12 0 0 1 12-12z"/>
+    <text class="entity" x="596" y="271">palabras</text>
+    <text class="key" x="596" y="324">PK</text>
+    <text class="field" x="646" y="324">id · INTEGER AUTOINCREMENT</text>
+    <line class="rule" x1="594" y1="344" x2="906" y2="344"/>
+    <text class="key" x="596" y="378">FK</text>
+    <text class="field" x="646" y="378">tema_id · INTEGER NOT NULL</text>
+    <text class="field" x="596" y="421">ingles · TEXT NOT NULL</text>
+    <text class="field" x="596" y="464">espanol · TEXT NOT NULL</text>
+    <text class="note" x="596" y="518">Cada palabra pertenece a un tema</text>
+  </g>
+
+  <g>
+    <rect class="card" x="1070" y="230" width="360" height="330" rx="12"/>
+    <path class="header" d="M1082 230h336a12 12 0 0 1 12 12v48H1070v-48a12 12 0 0 1 12-12z"/>
+    <text class="entity" x="1096" y="271">intentos</text>
+    <text class="key" x="1096" y="320">PK</text>
+    <text class="field" x="1146" y="320">id · INTEGER AUTOINCREMENT</text>
+    <line class="rule" x1="1094" y1="338" x2="1406" y2="338"/>
+    <text class="key" x="1096" y="368">FK</text>
+    <text class="field" x="1146" y="368">palabra_id · INTEGER NOT NULL</text>
+    <text class="field" x="1096" y="405">fecha · TEXT NOT NULL</text>
+    <text class="field" x="1096" y="442">acierto · INTEGER NOT NULL</text>
+    <text class="field" x="1096" y="479">texto_reconocido · TEXT NULL</text>
+    <text class="field" x="1096" y="516">origen · TEXT NOT NULL</text>
+    <text class="note" x="1096" y="542">DEFAULT 'tarjetas'</text>
+  </g>
+
+  <g>
+    <text class="relation-label" x="500" y="365" text-anchor="middle">incluye</text>
+    <text class="cardinality" x="442" y="402">1</text>
+    <path class="relation" d="M460 410h48"/>
+    <text class="cardinality" x="514" y="402">0..N</text>
+  </g>
+  <g>
+    <text class="relation-label" x="1000" y="365" text-anchor="middle">registra</text>
+    <text class="cardinality" x="942" y="402">1</text>
+    <path class="relation" d="M960 410h48"/>
+    <text class="cardinality" x="1014" y="402">0..N</text>
+  </g>
+
+  <line class="rule" x1="70" y1="610" x2="1430" y2="610"/>
+  <text class="note" x="70" y="650">Relaciones: temas 1:N palabras · palabras 1:N intentos.</text>
+  <text class="note" x="70" y="680">Las FK son obligatorias; borrar un tema elimina sus palabras e intentos asociados (ON DELETE CASCADE).</text>
+  <text class="note" x="70" y="710">acierto: 1 = acierto, 0 = fallo · texto_reconocido es opcional; origen identifica la actividad.</text>
+</svg>

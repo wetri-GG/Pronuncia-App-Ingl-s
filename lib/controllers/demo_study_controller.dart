@@ -27,6 +27,8 @@ class DemoStudyController extends ChangeNotifier {
   List<Tema> _temas = [];
   final Map<int, List<Palabra>> _palabrasPorTema = {};
   final Map<int, List<Intento>> _intentosPorTema = {};
+  Map<int, ({int intentos, int aciertos})> _estadisticasPorTema = {};
+  List<({Palabra palabra, int fallos})> _palabrasMasFalladas = [];
   bool isLoading = false;
   Object? error;
 
@@ -58,27 +60,8 @@ class DemoStudyController extends ChangeNotifier {
     return null;
   }
 
-  List<({Palabra palabra, int fallos})> get palabrasMasFalladas {
-    final fallos = <int, int>{};
-    for (final intento in todosLosIntentos.where(
-      (intento) => !intento.acierto,
-    )) {
-      fallos.update(intento.palabraId, (count) => count + 1, ifAbsent: () => 1);
-    }
-
-    return fallos.entries
-        .map((entry) {
-          final palabra = todasLasPalabras.where(
-            (palabra) => palabra.id == entry.key,
-          );
-          return palabra.isEmpty
-              ? null
-              : (palabra: palabra.first, fallos: entry.value);
-        })
-        .whereType<({Palabra palabra, int fallos})>()
-        .toList()
-      ..sort((left, right) => right.fallos.compareTo(left.fallos));
-  }
+  List<({Palabra palabra, int fallos})> get palabrasMasFalladas =>
+      List.unmodifiable(_palabrasMasFalladas);
 
   int get totalAciertos =>
       todosLosIntentos.where((intento) => intento.acierto).length;
@@ -89,11 +72,9 @@ class DemoStudyController extends ChangeNotifier {
       totalIntentos == 0 ? 0 : (totalAciertos * 100 / totalIntentos).round();
 
   int porcentajeAcierto(Tema tema) {
-    final intentos = _intentosPorTema[tema.id] ?? const [];
-    if (intentos.isEmpty) return 0;
-
-    final aciertos = intentos.where((intento) => intento.acierto).length;
-    return (aciertos * 100 / intentos.length).round();
+    final estadistica = _estadisticasPorTema[tema.id];
+    if (estadistica == null || estadistica.intentos == 0) return 0;
+    return (estadistica.aciertos * 100 / estadistica.intentos).round();
   }
 
   Future<void> cargar() async {
@@ -102,30 +83,7 @@ class DemoStudyController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      var temas = await _temaRepository.obtenerTodos();
-      if (temas.isEmpty) {
-        await _crearDatosIniciales();
-      }
-      await _asegurarTemaConPalabras('Números', const [
-        ('Zero', 'Cero'),
-        ('One', 'Uno'),
-        ('Two', 'Dos'),
-        ('Three', 'Tres'),
-        ('Four', 'Cuatro'),
-        ('Five', 'Cinco'),
-        ('Six', 'Seis'),
-        ('Seven', 'Siete'),
-        ('Eight', 'Ocho'),
-        ('Nine', 'Nueve'),
-        ('Ten', 'Diez'),
-      ]);
-      await _asegurarTemaConPalabras('Simon Says', const [
-        ('Arms up', 'Brazos arriba'),
-        ('Left arm', 'Brazo izquierdo'),
-        ('Right arm', 'Brazo derecho'),
-      ]);
-      temas = await _temaRepository.obtenerTodos();
-
+      final temas = await _temaRepository.obtenerTodos();
       final palabras = await _palabraRepository.obtenerTodos();
       final intentos = await _intentoRepository.obtenerTodos();
 
@@ -147,6 +105,7 @@ class DemoStudyController extends ChangeNotifier {
         final temaId = temaIdPorPalabra[intento.palabraId];
         _intentosPorTema[temaId]?.add(intento);
       }
+      await _cargarAgregados();
     } catch (exception) {
       error = exception;
     } finally {
@@ -155,12 +114,59 @@ class DemoStudyController extends ChangeNotifier {
     }
   }
 
+  Future<Palabra> obtenerOCrearPalabraActividad({
+    required String temaNombre,
+    required String ingles,
+    required String espanol,
+  }) async {
+    final temaKey = temaNombre.trim().toLowerCase();
+    final english = ingles.trim();
+    final spanish = espanol.trim();
+    if (temaKey.isEmpty || english.isEmpty || spanish.isEmpty) {
+      throw ArgumentError('El tema y las dos traducciones son obligatorios.');
+    }
+
+    var tema = _temas.cast<Tema?>().firstWhere(
+      (item) => item?.nombre.toLowerCase() == temaKey,
+      orElse: () => null,
+    );
+    if (tema == null) {
+      final id = await _temaRepository.crear(Tema(nombre: temaNombre.trim()));
+      tema = Tema(id: id, nombre: temaNombre.trim());
+      _temas = [..._temas, tema];
+      _palabrasPorTema[id] = [];
+      _intentosPorTema[id] = [];
+      _estadisticasPorTema[id] = (intentos: 0, aciertos: 0);
+    }
+
+    final existentes = _palabrasPorTema[tema.id] ?? const <Palabra>[];
+    for (final palabra in existentes) {
+      if (palabra.ingles.toLowerCase() == english.toLowerCase()) {
+        return palabra;
+      }
+    }
+
+    final id = await _palabraRepository.crear(
+      Palabra(temaId: tema.id!, ingles: english, espanol: spanish),
+    );
+    final palabra = Palabra(
+      id: id,
+      temaId: tema.id!,
+      ingles: english,
+      espanol: spanish,
+    );
+    _palabrasPorTema[tema.id]!.add(palabra);
+    notifyListeners();
+    return palabra;
+  }
+
   Future<void> agregarTema(String nombre) async {
     final id = await _temaRepository.crear(Tema(nombre: nombre.trim()));
     final tema = Tema(id: id, nombre: nombre.trim());
     _temas = [..._temas, tema];
     _palabrasPorTema[id] = [];
     _intentosPorTema[id] = [];
+    _estadisticasPorTema[id] = (intentos: 0, aciertos: 0);
     notifyListeners();
   }
 
@@ -229,80 +235,21 @@ class DemoStudyController extends ChangeNotifier {
         origen: intento.origen,
       ),
     );
+    await _cargarAgregados();
     notifyListeners();
   }
 
-  Future<void> _crearDatosIniciales() async {
-    await _crearTemaInicial('Animales', const [
-      ('Dog', 'Perro'),
-      ('Cat', 'Gato'),
-      ('Bird', 'Pajaro'),
-      ('Fish', 'Pez'),
-    ], correctAnswers: 4);
-    await _crearTemaInicial('Comida', const [
-      ('Apple', 'Manzana'),
-      ('Bread', 'Pan'),
-      ('Water', 'Agua'),
-    ], correctAnswers: 4);
-    await _crearTemaInicial('Colores', const [
-      ('Green', 'Verde'),
-      ('Blue', 'Azul'),
-      ('Red', 'Rojo'),
-    ], correctAnswers: 3);
-  }
-
-  Future<void> _asegurarTemaConPalabras(
-    String nombre,
-    List<(String, String)> traducciones,
-  ) async {
-    final existente = (await _temaRepository.obtenerTodos()).where(
-      (tema) => tema.nombre == nombre,
-    );
-    if (existente.isEmpty) {
-      await _crearTemaInicial(nombre, traducciones, correctAnswers: 0);
-      return;
-    }
-
-    final tema = existente.first;
-    final palabras = await _palabraRepository.obtenerPorTema(tema.id!);
-    final existentes = palabras.map((palabra) => palabra.ingles.toLowerCase());
-    for (final (ingles, espanol) in traducciones) {
-      if (existentes.contains(ingles.toLowerCase())) continue;
-      await _palabraRepository.crear(
-        Palabra(temaId: tema.id!, ingles: ingles, espanol: espanol),
-      );
-    }
-  }
-
-  Future<void> _crearTemaInicial(
-    String nombre,
-    List<(String, String)> traducciones, {
-    required int correctAnswers,
-  }) async {
-    final temaId = await _temaRepository.crear(Tema(nombre: nombre));
-    final palabras = <Palabra>[];
-    for (final (ingles, espanol) in traducciones) {
-      final palabraId = await _palabraRepository.crear(
-        Palabra(temaId: temaId, ingles: ingles, espanol: espanol),
-      );
-      palabras.add(
-        Palabra(
-          id: palabraId,
-          temaId: temaId,
-          ingles: ingles,
-          espanol: espanol,
+  Future<void> _cargarAgregados() async {
+    final estadisticas = await _intentoRepository.obtenerEstadisticasPorTema();
+    final palabrasFalladas = await _intentoRepository
+        .obtenerPalabrasMasFalladas();
+    _estadisticasPorTema = {
+      for (final estadistica in estadisticas)
+        estadistica.temaId: (
+          intentos: estadistica.intentos,
+          aciertos: estadistica.aciertos,
         ),
-      );
-    }
-
-    for (var index = 0; index < 5; index++) {
-      await _intentoRepository.crear(
-        Intento(
-          palabraId: palabras[index % palabras.length].id!,
-          fecha: DateTime(2026, 10, 28).subtract(Duration(days: index)),
-          acierto: index < correctAnswers,
-        ),
-      );
-    }
+    };
+    _palabrasMasFalladas = palabrasFalladas;
   }
 }

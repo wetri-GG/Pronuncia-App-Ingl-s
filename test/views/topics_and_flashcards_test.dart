@@ -10,6 +10,9 @@ import 'package:pronuncia/data/intento_repository.dart';
 import 'package:pronuncia/data/palabra_repository.dart';
 import 'package:pronuncia/data/tema_repository.dart';
 import 'package:pronuncia/main.dart';
+import 'package:pronuncia/models/intento.dart';
+import 'package:pronuncia/models/palabra.dart';
+import 'package:pronuncia/models/tema.dart';
 import 'package:pronuncia/widgets/flip_card.dart';
 
 void main() {
@@ -18,6 +21,50 @@ void main() {
   late TemaRepository temaRepository;
   late PalabraRepository palabraRepository;
   late IntentoRepository intentoRepository;
+
+  Future<void> createStudyData() async {
+    for (final tema in await temaRepository.obtenerTodos()) {
+      await temaRepository.eliminar(tema.id!);
+    }
+
+    final animalesId = await temaRepository.crear(
+      const Tema(nombre: 'Animales'),
+    );
+    final comidaId = await temaRepository.crear(const Tema(nombre: 'Comida'));
+    final dogId = await palabraRepository.crear(
+      Palabra(temaId: animalesId, ingles: 'Dog', espanol: 'Perro'),
+    );
+    final catId = await palabraRepository.crear(
+      Palabra(temaId: animalesId, ingles: 'Cat', espanol: 'Gato'),
+    );
+    final birdId = await palabraRepository.crear(
+      Palabra(temaId: animalesId, ingles: 'Bird', espanol: 'Pajaro'),
+    );
+    final fishId = await palabraRepository.crear(
+      Palabra(temaId: animalesId, ingles: 'Fish', espanol: 'Pez'),
+    );
+    await palabraRepository.crear(
+      Palabra(temaId: comidaId, ingles: 'Apple', espanol: 'Manzana'),
+    );
+
+    final attempts = [
+      (dogId, false),
+      (dogId, true),
+      (catId, true),
+      (birdId, true),
+      (fishId, true),
+    ];
+    for (var index = 0; index < attempts.length; index++) {
+      final (wordId, isCorrect) = attempts[index];
+      await intentoRepository.crear(
+        Intento(
+          palabraId: wordId,
+          fecha: DateTime.utc(2026, 11, 1, index),
+          acierto: isCorrect,
+        ),
+      );
+    }
+  }
 
   setUp(() async {
     directorioTemporal = await Directory.systemTemp.createTemp(
@@ -79,24 +126,91 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  test('el controlador carga y conserva los datos de estudio', () async {
+  test('una base nueva incluye vocabulario y empieza sin intentos', () async {
     final controller = DemoStudyController(databaseHelper: databaseHelper);
     await controller.cargar().timeout(const Duration(seconds: 10));
 
     expect(controller.error, isNull);
-    expect(controller.temas, hasLength(5));
-    expect(controller.palabrasDe(controller.temas.first), hasLength(4));
-    final numbers = controller.temas.singleWhere(
-      (tema) => tema.nombre == 'Números',
-    );
-    expect(controller.palabrasDe(numbers), hasLength(11));
+    expect(controller.temas.map((tema) => tema.nombre), [
+      'Animales',
+      'Colores',
+      'Comida',
+      'Números',
+      'Simon Says',
+    ]);
+    expect(controller.todasLasPalabras, hasLength(24));
     expect(
-      controller.palabrasDe(numbers).map((word) => word.ingles),
-      containsAll(['Zero', 'Five', 'Ten']),
+      controller.todasLasPalabras.any((word) => word.ingles == 'Dog'),
+      isTrue,
+    );
+    expect(controller.totalIntentos, 0);
+    expect(controller.porcentajeGlobal, 0);
+    expect(
+      controller.temas.every((tema) {
+        return controller.porcentajeAcierto(tema) == 0;
+      }),
+      isTrue,
     );
   });
 
+  test(
+    'el controlador actualiza los agregados SQL al guardar un intento',
+    () async {
+      await createStudyData();
+      final controller = DemoStudyController(databaseHelper: databaseHelper);
+      await controller.cargar();
+
+      final animales = controller.temas.singleWhere(
+        (tema) => tema.nombre == 'Animales',
+      );
+      final perro = controller.palabrasDe(animales).first;
+      expect(controller.porcentajeAcierto(animales), 80);
+
+      await controller.registrarRespuesta(
+        perro,
+        conocida: false,
+        origen: 'voz',
+        textoReconocido: 'wrong',
+      );
+
+      expect(controller.porcentajeAcierto(animales), 67);
+      final perroFallado = controller.palabrasMasFalladas.singleWhere(
+        (item) => item.palabra.ingles == 'Dog',
+      );
+      expect(perroFallado.fallos, 2);
+    },
+  );
+
+  test(
+    'una actividad añade vocabulario sin crear intentos de ejemplo',
+    () async {
+      final controller = DemoStudyController(databaseHelper: databaseHelper);
+      await controller.cargar();
+
+      final number = await controller.obtenerOCrearPalabraActividad(
+        temaNombre: 'Actividad personalizada',
+        ingles: 'Jump',
+        espanol: 'Saltar',
+      );
+
+      expect(controller.temas, hasLength(6));
+      final activityTopic = controller.temaPorId(number.temaId)!;
+      expect(activityTopic.nombre, 'Actividad personalizada');
+      expect(controller.palabrasDe(activityTopic), [number]);
+      expect(controller.totalIntentos, 0);
+
+      await controller.registrarRespuesta(
+        number,
+        conocida: true,
+        origen: 'dedos',
+      );
+      expect(controller.totalIntentos, 1);
+      expect(controller.todosLosIntentos.single.origen, 'dedos');
+    },
+  );
+
   testWidgets('se puede abrir, girar y responder tarjetas', (tester) async {
+    await tester.runAsync(createStudyData);
     await pumpApp(tester);
 
     await openAnimalsFlashcards(tester);
@@ -209,6 +323,7 @@ void main() {
   });
 
   testWidgets('la práctica oral permite filtrar por tema', (tester) async {
+    await tester.runAsync(createStudyData);
     await pumpApp(tester);
     await scrollHomeTo(tester, 'Práctica oral');
     await tester.tap(find.text('Práctica oral'));

@@ -21,16 +21,19 @@ class _SimonSaysScreenState extends State<SimonSaysScreen> {
     _PoseTarget(
       instruction: 'Levanta los dos brazos',
       word: 'Arms up',
+      translation: 'Brazos arriba',
       icon: Icons.accessibility_new_rounded,
     ),
     _PoseTarget(
       instruction: 'Estira el brazo izquierdo',
       word: 'Left arm',
+      translation: 'Brazo izquierdo',
       icon: Icons.arrow_back_rounded,
     ),
     _PoseTarget(
       instruction: 'Estira el brazo derecho',
       word: 'Right arm',
+      translation: 'Brazo derecho',
       icon: Icons.arrow_forward_rounded,
     ),
   ];
@@ -285,18 +288,14 @@ class _SimonSaysScreenState extends State<SimonSaysScreen> {
   }
 
   Future<void> _savePoseResult(bool correct) async {
-    final word = context.read<DemoStudyController>().palabraPorIngles(
-      _target.word,
-    );
-    if (word == null) {
-      setState(
-        () => _error = 'Falta la palabra ${_target.word} en la base de datos.',
-      );
-      return;
-    }
-
     try {
-      await context.read<DemoStudyController>().registrarRespuesta(
+      final controller = context.read<DemoStudyController>();
+      final word = await controller.obtenerOCrearPalabraActividad(
+        temaNombre: 'Simon Says',
+        ingles: _target.word,
+        espanol: _target.translation,
+      );
+      await controller.registrarRespuesta(
         word,
         conocida: correct,
         origen: 'pose',
@@ -331,11 +330,13 @@ class _PoseTarget {
   const _PoseTarget({
     required this.instruction,
     required this.word,
+    required this.translation,
     required this.icon,
   });
 
   final String instruction;
   final String word;
+  final String translation;
   final IconData icon;
 }
 

@@ -29,6 +29,9 @@ void main() {
     palabraRepository = PalabraRepository(databaseHelper);
     intentoRepository = IntentoRepository(databaseHelper);
     await databaseHelper.database;
+    for (final tema in await temaRepository.obtenerTodos()) {
+      await temaRepository.eliminar(tema.id!);
+    }
   });
 
   tearDown(() async {
@@ -150,6 +153,56 @@ void main() {
     );
   });
 
+  test(
+    'las consultas agregadas relacionan intentos, palabras y temas',
+    () async {
+      final animalesId = await temaRepository.crear(
+        const Tema(nombre: 'Animales'),
+      );
+      final sinIntentosId = await temaRepository.crear(
+        const Tema(nombre: 'Sin intentos'),
+      );
+      final gatoId = await palabraRepository.crear(
+        Palabra(temaId: animalesId, ingles: 'cat', espanol: 'gato'),
+      );
+      final perroId = await palabraRepository.crear(
+        Palabra(temaId: animalesId, ingles: 'dog', espanol: 'perro'),
+      );
+
+      for (final (palabraId, acierto) in [
+        (gatoId, false),
+        (gatoId, false),
+        (gatoId, true),
+        (perroId, false),
+        (perroId, true),
+      ]) {
+        await intentoRepository.crear(
+          Intento(
+            palabraId: palabraId,
+            fecha: DateTime.utc(2026, 11, 1),
+            acierto: acierto,
+          ),
+        );
+      }
+
+      final estadisticas = await intentoRepository.obtenerEstadisticasPorTema();
+      expect(estadisticas, [
+        (temaId: animalesId, intentos: 5, aciertos: 2),
+        (temaId: sinIntentosId, intentos: 0, aciertos: 0),
+      ]);
+
+      final palabrasFalladas = await intentoRepository
+          .obtenerPalabrasMasFalladas(limite: 1);
+      expect(palabrasFalladas, hasLength(1));
+      expect(palabrasFalladas.single.palabra.ingles, 'cat');
+      expect(palabrasFalladas.single.fallos, 2);
+      expect(
+        () => intentoRepository.obtenerPalabrasMasFalladas(limite: 0),
+        throwsArgumentError,
+      );
+    },
+  );
+
   test('la migracion conserva intentos de una base version 1', () async {
     final oldDatabasePath = join(directorioTemporal.path, 'old-version.db');
     final oldDatabase = await databaseFactoryFfi.openDatabase(
@@ -203,6 +256,101 @@ void main() {
     expect(migratedAttempts, hasLength(1));
     expect(migratedAttempts.single.acierto, isTrue);
     expect(migratedAttempts.single.origen, 'tarjetas');
+    await migratedHelper.close();
+  });
+
+  test('la migracion elimina datos de ejemplo y conserva actividad real', () async {
+    final oldDatabasePath = join(directorioTemporal.path, 'seeded-version.db');
+    final oldDatabase = await databaseFactoryFfi.openDatabase(
+      oldDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 2,
+        onCreate: (db, version) async {
+          await db.execute(
+            'CREATE TABLE temas (id INTEGER PRIMARY KEY, nombre TEXT NOT NULL)',
+          );
+          await db.execute('''
+            CREATE TABLE palabras (
+              id INTEGER PRIMARY KEY,
+              tema_id INTEGER NOT NULL,
+              ingles TEXT NOT NULL,
+              espanol TEXT NOT NULL,
+              FOREIGN KEY (tema_id) REFERENCES temas(id) ON DELETE CASCADE
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE intentos (
+              id INTEGER PRIMARY KEY,
+              palabra_id INTEGER NOT NULL,
+              fecha TEXT NOT NULL,
+              acierto INTEGER NOT NULL,
+              texto_reconocido TEXT,
+              origen TEXT NOT NULL DEFAULT 'tarjetas',
+              FOREIGN KEY (palabra_id) REFERENCES palabras(id) ON DELETE CASCADE
+            )
+          ''');
+          await db.insert('temas', {'id': 1, 'nombre': 'Animales'});
+          await db.insert('palabras', {
+            'id': 1,
+            'tema_id': 1,
+            'ingles': 'Dog',
+            'espanol': 'Perro',
+          });
+          await db.insert('palabras', {
+            'id': 2,
+            'tema_id': 1,
+            'ingles': 'Cat',
+            'espanol': 'Gato',
+          });
+          await db.insert('intentos', {
+            'id': 1,
+            'palabra_id': 1,
+            'fecha': DateTime(2026, 10, 28).toIso8601String(),
+            'acierto': 1,
+            'texto_reconocido': null,
+            'origen': 'tarjetas',
+          });
+          await db.insert('intentos', {
+            'id': 2,
+            'palabra_id': 2,
+            'fecha': DateTime(2026, 10, 28).toIso8601String(),
+            'acierto': 1,
+            'texto_reconocido': null,
+            'origen': 'tarjetas',
+          });
+          await db.insert('intentos', {
+            'id': 3,
+            'palabra_id': 1,
+            'fecha': DateTime.utc(2026, 11, 10).toIso8601String(),
+            'acierto': 1,
+            'texto_reconocido': 'dog',
+            'origen': 'voz',
+          });
+        },
+      ),
+    );
+    await oldDatabase.close();
+
+    final migratedHelper = DatabaseHelper(databasePath: oldDatabasePath);
+    final migratedTopics = await TemaRepository(migratedHelper).obtenerTodos();
+    final migratedWords = await PalabraRepository(migratedHelper)
+        .obtenerTodos();
+    final migratedAttempts = await IntentoRepository(migratedHelper)
+        .obtenerTodos();
+
+    expect(migratedTopics.map((topic) => topic.nombre), [
+      'Animales',
+      'Colores',
+      'Comida',
+      'Números',
+      'Simon Says',
+    ]);
+    expect(migratedWords, hasLength(24));
+    expect(migratedWords.where((word) => word.ingles == 'Dog'), hasLength(1));
+    expect(migratedWords.where((word) => word.ingles == 'Cat'), hasLength(1));
+    expect(migratedAttempts, hasLength(1));
+    expect(migratedAttempts.single.origen, 'voz');
+    expect(migratedAttempts.single.textoReconocido, 'dog');
     await migratedHelper.close();
   });
 }

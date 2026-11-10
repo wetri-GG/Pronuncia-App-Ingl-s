@@ -1,7 +1,7 @@
 name: pronuncia
 description: "Entrenador de vocabulario y pronunciacion en ingles."
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.1.0+3
 
 environment:
   sdk: ^3.13.4
