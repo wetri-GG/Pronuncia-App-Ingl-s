@@ -39,6 +39,10 @@ lib/
 11. Estadisticas globales, por tema y palabras mas falladas.
 12. Camara con reconocimiento de imagen, etiquetas alternativas y modo de
     realidad aumentada.
+13. Ajustes de apariencia (sistema, claro u oscuro) y velocidad de voz,
+    guardados localmente.
+14. Medidor de pronunciacion que compara la palabra esperada con la transcripcion
+    y registra el resultado en SQLite.
 
 Los temas, palabras e intentos se guardan en SQLite. Una instalación nueva
 incluye temas y vocabulario inicial para poder practicar, pero no incluye
@@ -85,6 +89,11 @@ falladas cuenta solo intentos con `acierto = 0`.
 - El traductor de conversacion usa ML Kit en Android; los modelos de ingles y
   espanol se descargan la primera vez que se traduce, para no incluirlos dentro
   del APK.
+- El medidor de pronunciacion se basa en la coincidencia del texto reconocido;
+  no es una evaluacion acustica del acento ni de fonemas.
+- Las preferencias visuales y de velocidad de voz se guardan localmente con
+  `shared_preferences`; los intentos del medidor se guardan en la tabla SQLite
+  existente con origen `pronunciacion`.
 - Para reducir el tamano de las descargas Android sin quitar funciones, compila
   APKs separados por arquitectura con `flutter build apk --release --split-per-abi`.
 
@@ -92,7 +101,8 @@ falladas cuenta solo intentos con `acierto = 0`.
 
 - Navegacion y estado: `go_router`, `provider`.
 - Persistencia: `sqflite`, `sqflite_common_ffi`, `path`, `path_provider`.
-- Voz y accesos de dispositivo: `speech_to_text`, `flutter_tts`, `camera`, `permission_handler`.
+- Voz y accesos de dispositivo: `speech_to_text`, `flutter_tts`, `camera`,
+  `permission_handler`, `shared_preferences`.
 - Vision y traduccion: `google_mlkit_image_labeling`, `google_mlkit_pose_detection`,
   `google_mlkit_translation`, `hand_landmarker`.
 - Realidad aumentada: `ar_flutter_plugin_2`.

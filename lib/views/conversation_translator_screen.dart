@@ -2,7 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_mlkit_translation/google_mlkit_translation.dart';
+import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+
+import '../controllers/app_settings_controller.dart';
 
 class ConversationTranslatorScreen extends StatefulWidget {
   const ConversationTranslatorScreen({super.key});
@@ -310,8 +313,10 @@ class _ConversationTranslatorScreenState
   }
 
   Future<void> _speak(String text) async {
+    final speechRate = context.read<AppSettingsController>().speechRate;
     try {
       await _tts.setLanguage(_englishToSpanish ? 'es-ES' : 'en-US');
+      await _tts.setSpeechRate(speechRate);
       await _tts.awaitSpeakCompletion(true);
       await _tts.speak(text);
     } catch (error) {
@@ -343,7 +348,6 @@ class _TurnCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: Colors.white,
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(16),

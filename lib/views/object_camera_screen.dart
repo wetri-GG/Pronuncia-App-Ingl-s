@@ -10,6 +10,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
+
+import '../controllers/app_settings_controller.dart';
 
 class ObjectCameraScreen extends StatefulWidget {
   const ObjectCameraScreen({super.key});
@@ -143,7 +146,8 @@ class _ObjectCameraScreenState extends State<ObjectCameraScreen> {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.94),
+                  color: Theme.of(context).colorScheme.surface
+                      .withValues(alpha: 0.94),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: const [
                     BoxShadow(
@@ -160,7 +164,7 @@ class _ObjectCameraScreenState extends State<ObjectCameraScreen> {
                       _englishLabel!,
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(
-                            color: const Color(0xFF184B37),
+                            color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.w700,
                           ),
                     ),
@@ -468,8 +472,10 @@ class _ObjectCameraScreenState extends State<ObjectCameraScreen> {
   };
 
   Future<void> _speak(String text, String locale) async {
+    final speechRate = context.read<AppSettingsController>().speechRate;
     try {
       await _tts.setLanguage(locale);
+      await _tts.setSpeechRate(speechRate);
       await _tts.speak(text);
     } catch (error) {
       if (mounted) {
@@ -504,7 +510,7 @@ class _MessagePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.93),
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.93),
       borderRadius: BorderRadius.circular(14),
     ),
     child: Padding(

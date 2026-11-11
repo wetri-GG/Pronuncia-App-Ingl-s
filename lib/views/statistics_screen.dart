@@ -26,7 +26,6 @@ class StatisticsScreen extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               children: [
                 Card(
-                  color: Colors.white,
                   child: Padding(
                     padding: const EdgeInsets.all(22),
                     child: Column(
@@ -62,7 +61,6 @@ class StatisticsScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 for (final tema in controller.temas)
                   Card(
-                    color: Colors.white,
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
@@ -92,7 +90,6 @@ class StatisticsScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 if (failedWords.isEmpty)
                   const Card(
-                    color: Colors.white,
                     child: ListTile(
                       title: Text('Todavía no hay errores registrados.'),
                     ),
@@ -100,7 +97,6 @@ class StatisticsScreen extends StatelessWidget {
                 else
                   for (final item in failedWords.take(5))
                     Card(
-                      color: Colors.white,
                       child: ListTile(
                         leading: const Icon(Icons.error_outline_rounded),
                         title: Text(item.palabra.ingles),

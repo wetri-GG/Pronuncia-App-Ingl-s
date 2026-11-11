@@ -4,6 +4,8 @@ import 'conversation_translator_screen.dart';
 import 'finger_count_screen.dart';
 import 'object_camera_screen.dart';
 import 'oral_practice_screen.dart';
+import 'pronunciation_practice_screen.dart';
+import 'settings_screen.dart';
 import 'simon_says_screen.dart';
 import 'statistics_screen.dart';
 import 'text_to_speech_screen.dart';
@@ -26,6 +28,12 @@ class HomeScreen extends StatelessWidget {
         subtitle: 'Elige un tema y practica la pronunciación',
         icon: Icons.mic_rounded,
         onTap: () => _open(context, const OralPracticeScreen()),
+      ),
+      _MenuOption(
+        title: 'Medidor de pronunciación',
+        subtitle: 'Practica palabras y guarda tu puntuación',
+        icon: Icons.graphic_eq_rounded,
+        onTap: () => _open(context, const PronunciationPracticeScreen()),
       ),
       _MenuOption(
         title: 'Texto a voz',
@@ -63,12 +71,29 @@ class HomeScreen extends StatelessWidget {
         icon: Icons.view_in_ar_rounded,
         onTap: () => _open(context, const ObjectCameraScreen()),
       ),
+      _MenuOption(
+        title: 'Ajustes',
+        subtitle: 'Tema claro u oscuro y velocidad de voz',
+        icon: Icons.settings_rounded,
+        onTap: () => _open(context, const SettingsScreen()),
+      ),
     ];
 
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text('Pronuncia'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/pronuncia_logo.png',
+              width: 28,
+              height: 28,
+            ),
+            const SizedBox(width: 8),
+            const Text('Pronuncia'),
+          ],
+        ),
       ),
       body: SafeArea(
         child: ListView(
@@ -77,7 +102,7 @@ class HomeScreen extends StatelessWidget {
             Text(
               '¿Qué quieres practicar hoy?',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: const Color(0xFF214F3C),
+                color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -126,15 +151,14 @@ class _MenuCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Card(
       margin: EdgeInsets.zero,
-      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE5ECE8)),
+        side: BorderSide(color: colorScheme.outlineVariant),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFFE9F1ED),
+          backgroundColor: colorScheme.secondaryContainer,
           foregroundColor: colorScheme.primary,
           child: Icon(option.icon),
         ),

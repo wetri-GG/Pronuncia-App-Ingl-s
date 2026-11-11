@@ -13,7 +13,9 @@ import 'package:pronuncia/main.dart';
 import 'package:pronuncia/models/intento.dart';
 import 'package:pronuncia/models/palabra.dart';
 import 'package:pronuncia/models/tema.dart';
+import 'package:pronuncia/widgets/pronunciation_meter.dart';
 import 'package:pronuncia/widgets/flip_card.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   late Directory directorioTemporal;
@@ -67,6 +69,7 @@ void main() {
   }
 
   setUp(() async {
+    SharedPreferences.setMockInitialValues({});
     directorioTemporal = await Directory.systemTemp.createTemp(
       'pronuncia-ui-test-',
     );
@@ -313,6 +316,8 @@ void main() {
 
   testWidgets('el menú abre la pantalla de estadísticas', (tester) async {
     await pumpApp(tester);
+    expect(find.widgetWithText(Row, 'Pronuncia'), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
     await scrollHomeTo(tester, 'Estadísticas');
     await tester.tap(find.text('Estadísticas'));
     await tester.pumpAndSettle();
@@ -368,5 +373,82 @@ void main() {
     expect(find.text('Conversación bilingüe'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('los ajustes cambian el tema y muestran la velocidad de voz', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await scrollHomeTo(tester, 'Ajustes');
+    await tester.tap(find.text('Ajustes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Apariencia'), findsOneWidget);
+    expect(find.text('Velocidad de voz'), findsOneWidget);
+    await tester.tap(find.text('Oscuro'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
+      ThemeMode.dark,
+    );
+    expect(find.byType(Slider), findsOneWidget);
+  });
+
+  testWidgets('el medidor guarda respuesta y resultado en SQLite', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('flutter_tts'),
+      (_) async => 1,
+    );
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('plugin.csdcorp.com/speech_to_text'),
+      (_) async => null,
+    );
+    await tester.runAsync(createStudyData);
+    await pumpApp(tester);
+    await scrollHomeTo(tester, 'Medidor de pronunciación');
+    await tester.tap(find.text('Medidor de pronunciación'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dog'), findsOneWidget);
+    expect(find.byType(PronunciationMeter), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(
+        TextField,
+        'Texto reconocido (también puedes escribirlo)',
+      ),
+      'Dog',
+    );
+    await tester.tap(find.text('Medir y guardar respuesta'));
+    await pumpDatabase(tester);
+
+    expect(find.text('100%'), findsOneWidget);
+    final savedAttempts = await tester.runAsync(
+      () async => (await intentoRepository.obtenerTodos())
+          .where((attempt) => attempt.origen == 'pronunciacion')
+          .toList(),
+    );
+    expect(savedAttempts, hasLength(1));
+    expect(savedAttempts!.single.textoReconocido, 'Dog');
+    expect(savedAttempts.single.acierto, isTrue);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('flutter_tts'),
+      null,
+    );
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('plugin.csdcorp.com/speech_to_text'),
+      null,
+    );
   });
 }

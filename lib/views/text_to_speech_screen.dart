@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:provider/provider.dart';
+
+import '../controllers/app_settings_controller.dart';
 
 class TextToSpeechScreen extends StatefulWidget {
   const TextToSpeechScreen({super.key});
@@ -32,7 +35,7 @@ class _TextToSpeechScreenState extends State<TextToSpeechScreen> {
           Text(
             'Escucha cómo suena tu texto',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: const Color(0xFF214F3C),
+              color: Theme.of(context).colorScheme.primary,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -81,6 +84,7 @@ class _TextToSpeechScreenState extends State<TextToSpeechScreen> {
 
   Future<void> _speak() async {
     final text = _textController.text.trim();
+    final speechRate = context.read<AppSettingsController>().speechRate;
     if (text.isEmpty) {
       setState(() => _error = 'Escribe algo antes de reproducir el audio.');
       return;
@@ -88,7 +92,7 @@ class _TextToSpeechScreenState extends State<TextToSpeechScreen> {
 
     try {
       await _tts.setLanguage(_isEnglish ? 'en-US' : 'es-ES');
-      await _tts.setSpeechRate(0.45);
+      await _tts.setSpeechRate(speechRate);
       await _tts.awaitSpeakCompletion(true);
       setState(() {
         _error = null;

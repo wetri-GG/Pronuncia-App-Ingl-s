@@ -32,7 +32,6 @@ class WordListScreen extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final palabra = words[index];
                       return Card(
-                        color: Colors.white,
                         child: ListTile(
                           title: Text(
                             palabra.ingles,

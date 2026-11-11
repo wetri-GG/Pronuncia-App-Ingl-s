@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:provider/provider.dart';
 
+import '../controllers/app_settings_controller.dart';
 import '../controllers/demo_study_controller.dart';
 import '../models/palabra.dart';
 import '../models/tema.dart';
@@ -127,8 +128,10 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   }
 
   Future<void> _speak(String word) async {
+    final speechRate = context.read<AppSettingsController>().speechRate;
     try {
       await _tts.setLanguage('en-US');
+      await _tts.setSpeechRate(speechRate);
       await _tts.speak(word);
     } catch (error) {
       if (!mounted) return;

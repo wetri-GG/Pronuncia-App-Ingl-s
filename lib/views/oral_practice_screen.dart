@@ -3,6 +3,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+import '../controllers/app_settings_controller.dart';
 import '../controllers/demo_study_controller.dart';
 import '../models/palabra.dart';
 import '../models/tema.dart';
@@ -75,7 +76,7 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
           Text(
             'Di esta palabra en inglés',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: const Color(0xFF214F3C),
+              color: Theme.of(context).colorScheme.primary,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -209,8 +210,10 @@ class _OralPracticeScreenState extends State<OralPracticeScreen> {
   }
 
   Future<void> _speak(String text) async {
+    final speechRate = context.read<AppSettingsController>().speechRate;
     try {
       await _tts.setLanguage('en-US');
+      await _tts.setSpeechRate(speechRate);
       await _tts.speak(text);
     } catch (error) {
       if (!mounted) return;
@@ -333,7 +336,6 @@ class _PracticeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(

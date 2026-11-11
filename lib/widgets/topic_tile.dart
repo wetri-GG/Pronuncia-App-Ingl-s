@@ -21,10 +21,10 @@ class TopicTile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Material(
-      color: Colors.white,
+      color: colorScheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE5ECE8)),
+        side: BorderSide(color: colorScheme.outlineVariant),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -37,7 +37,7 @@ class TopicTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE9F1ED),
+                  color: colorScheme.secondaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(

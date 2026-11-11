@@ -103,9 +103,9 @@ class _CardFace extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE8EEEA)),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         boxShadow: const [
           BoxShadow(
             color: Color(0x160D3425),
@@ -125,7 +125,7 @@ class _CardFace extends StatelessWidget {
                 label,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  color: const Color(0xFF184B37),
+                  color: Theme.of(context).colorScheme.primary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -135,14 +135,14 @@ class _CardFace extends StatelessWidget {
             Positioned(
               bottom: 18,
               child: Material(
-                color: const Color(0xFFE9F1ED),
+                color: Theme.of(context).colorScheme.secondaryContainer,
                 shape: const CircleBorder(),
                 child: IconButton(
                   tooltip: 'Escuchar pronunciación en inglés',
                   onPressed: onSpeak,
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.volume_up_rounded,
-                    color: Color(0xFF39775D),
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),

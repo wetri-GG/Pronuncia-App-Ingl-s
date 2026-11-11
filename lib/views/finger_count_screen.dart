@@ -9,6 +9,7 @@ import 'package:hand_landmarker/hand_landmarker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
+import '../controllers/app_settings_controller.dart';
 import '../controllers/demo_study_controller.dart';
 
 class FingerCountScreen extends StatefulWidget {
@@ -65,7 +66,7 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
           Text(
             'Muestra un número con la mano',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: const Color(0xFF214F3C),
+              color: Theme.of(context).colorScheme.primary,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -142,7 +143,6 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
           ),
           const SizedBox(height: 20),
           Card(
-            color: Colors.white,
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -150,7 +150,7 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
                   Text(
                     _numberInEnglish(_selectedCount),
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: const Color(0xFF184B37),
+                      color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -293,8 +293,10 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
   }
 
   Future<void> _speak(String text) async {
+    final speechRate = context.read<AppSettingsController>().speechRate;
     try {
       await _tts.setLanguage('en-US');
+      await _tts.setSpeechRate(speechRate);
       await _tts.speak(text);
     } catch (error) {
       if (mounted) _showMessage('No se pudo reproducir el audio: $error');
@@ -356,10 +358,13 @@ class _PlatformNotice extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) => Card(
-    color: const Color(0xFFE9F1ED),
-    child: Padding(padding: const EdgeInsets.all(16), child: Text(message)),
-  );
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      color: colors.secondaryContainer,
+      child: Padding(padding: const EdgeInsets.all(16), child: Text(message)),
+    );
+  }
 }
 
 class _CountBadge extends StatelessWidget {
@@ -370,7 +375,7 @@ class _CountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-    color: Colors.white.withValues(alpha: 0.92),
+    color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.92),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: Text(

@@ -85,7 +85,7 @@ class _SimonSaysScreenState extends State<SimonSaysScreen> {
           Text(
             'Escucha y haz la pose',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: const Color(0xFF214F3C),
+              color: Theme.of(context).colorScheme.primary,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -113,7 +113,6 @@ class _SimonSaysScreenState extends State<SimonSaysScreen> {
           ),
           const SizedBox(height: 18),
           Card(
-            color: Colors.white,
             child: Padding(
               padding: const EdgeInsets.all(22),
               child: Column(
@@ -127,13 +126,17 @@ class _SimonSaysScreenState extends State<SimonSaysScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Icon(_target.icon, size: 44, color: const Color(0xFF39775D)),
+                  Icon(
+                    _target.icon,
+                    size: 44,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     _target.instruction,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: const Color(0xFF184B37),
+                      color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -360,16 +363,18 @@ class _PlatformMessage extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: const Color(0xFFE9F1ED),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Text(message, textAlign: TextAlign.center),
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(20),
       ),
-    ),
-  );
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text(message, textAlign: TextAlign.center),
+        ),
+      ),
+    );
+  }
 }

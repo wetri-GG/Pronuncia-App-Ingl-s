@@ -38,7 +38,7 @@ class _AddWordScreenState extends State<AddWordScreen> {
             Text(
               'Añadir a ${widget.tema.nombre}',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: const Color(0xFF214F3C),
+                color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.w700,
               ),
             ),
