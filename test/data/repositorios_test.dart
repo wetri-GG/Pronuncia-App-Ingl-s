@@ -56,6 +56,7 @@ void main() {
         acierto: true,
         textoReconocido: 'cat',
         origen: 'voz',
+        puntuacion: 93,
       ),
     );
 
@@ -73,6 +74,7 @@ void main() {
     );
     expect((await intentoRepository.obtenerPorId(intentoId))?.fecha, fecha);
     expect((await intentoRepository.obtenerPorId(intentoId))?.origen, 'voz');
+    expect((await intentoRepository.obtenerPorId(intentoId))?.puntuacion, 93);
     expect(
       (await intentoRepository.obtenerPorPalabra(palabraId)),
       hasLength(1),
@@ -103,11 +105,13 @@ void main() {
           fecha: fecha,
           acierto: false,
           textoReconocido: 'wrong',
+          puntuacion: 51,
         ),
       ),
       1,
     );
     expect((await intentoRepository.obtenerPorId(intentoId))?.acierto, isFalse);
+    expect((await intentoRepository.obtenerPorId(intentoId))?.puntuacion, 51);
 
     expect(await intentoRepository.eliminar(intentoId), 1);
     expect(await palabraRepository.eliminar(palabraId), 1);
@@ -203,6 +207,29 @@ void main() {
     },
   );
 
+  test('el progreso cuenta una palabra una vez tras un acierto', () async {
+    final temaId = await temaRepository.crear(const Tema(nombre: 'Animales'));
+    final palabraDominada = await palabraRepository.crear(
+      Palabra(temaId: temaId, ingles: 'cat', espanol: 'gato'),
+    );
+    await palabraRepository.crear(
+      Palabra(temaId: temaId, ingles: 'dog', espanol: 'perro'),
+    );
+    for (final acierto in [true, true, false]) {
+      await intentoRepository.crear(
+        Intento(
+          palabraId: palabraDominada,
+          fecha: DateTime.utc(2026, 11, 1),
+          acierto: acierto,
+        ),
+      );
+    }
+
+    expect(await intentoRepository.obtenerProgresoPorTema(), [
+      (temaId: temaId, totalPalabras: 2, palabrasDominadas: 1),
+    ]);
+  });
+
   test('la migracion conserva intentos de una base version 1', () async {
     final oldDatabasePath = join(directorioTemporal.path, 'old-version.db');
     final oldDatabase = await databaseFactoryFfi.openDatabase(
@@ -256,6 +283,90 @@ void main() {
     expect(migratedAttempts, hasLength(1));
     expect(migratedAttempts.single.acierto, isTrue);
     expect(migratedAttempts.single.origen, 'tarjetas');
+    expect(migratedAttempts.single.puntuacion, isNull);
+    await migratedHelper.close();
+  });
+
+  test('la migracion v4 conserva intentos y añade la puntuacion', () async {
+    final oldDatabasePath = join(directorioTemporal.path, 'version-4.db');
+    final oldDatabase = await databaseFactoryFfi.openDatabase(
+      oldDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 4,
+        onCreate: (db, version) async {
+          await db.execute(
+            'CREATE TABLE temas (id INTEGER PRIMARY KEY, nombre TEXT NOT NULL)',
+          );
+          await db.execute('''
+            CREATE TABLE palabras (
+              id INTEGER PRIMARY KEY,
+              tema_id INTEGER NOT NULL,
+              ingles TEXT NOT NULL,
+              espanol TEXT NOT NULL,
+              FOREIGN KEY (tema_id) REFERENCES temas(id) ON DELETE CASCADE
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE intentos (
+              id INTEGER PRIMARY KEY,
+              palabra_id INTEGER NOT NULL,
+              fecha TEXT NOT NULL,
+              acierto INTEGER NOT NULL,
+              texto_reconocido TEXT,
+              origen TEXT NOT NULL DEFAULT 'tarjetas',
+              FOREIGN KEY (palabra_id) REFERENCES palabras(id) ON DELETE CASCADE
+            )
+          ''');
+          await db.insert('temas', {'id': 1, 'nombre': 'Animales'});
+          await db.insert('palabras', {
+            'id': 1,
+            'tema_id': 1,
+            'ingles': 'cat',
+            'espanol': 'gato',
+          });
+          await db.insert('intentos', {
+            'id': 1,
+            'palabra_id': 1,
+            'fecha': DateTime.utc(2026, 11, 1).toIso8601String(),
+            'acierto': 1,
+            'texto_reconocido': 'cat',
+            'origen': 'pronunciacion',
+          });
+        },
+      ),
+    );
+    await oldDatabase.close();
+
+    final migratedHelper = DatabaseHelper(databasePath: oldDatabasePath);
+    final repository = IntentoRepository(migratedHelper);
+    final previousAttempts = await repository.obtenerTodos();
+
+    expect(previousAttempts, hasLength(1));
+    expect(previousAttempts.single.origen, 'pronunciacion');
+    expect(previousAttempts.single.puntuacion, isNull);
+
+    final scoreAttemptId = await repository.crear(
+      Intento(
+        palabraId: 1,
+        fecha: DateTime.utc(2026, 11, 2),
+        acierto: true,
+        origen: 'pronunciacion',
+        puntuacion: 94,
+      ),
+    );
+    expect((await repository.obtenerPorId(scoreAttemptId))?.puntuacion, 94);
+    await expectLater(
+      repository.crear(
+        Intento(
+          palabraId: 1,
+          fecha: DateTime.utc(2026, 11, 3),
+          acierto: true,
+          origen: 'pronunciacion',
+          puntuacion: 101,
+        ),
+      ),
+      throwsException,
+    );
     await migratedHelper.close();
   });
 
@@ -351,6 +462,7 @@ void main() {
     expect(migratedAttempts, hasLength(1));
     expect(migratedAttempts.single.origen, 'voz');
     expect(migratedAttempts.single.textoReconocido, 'dog');
+    expect(migratedAttempts.single.puntuacion, isNull);
     await migratedHelper.close();
   });
 }

@@ -6,6 +6,7 @@ class Intento {
     required this.acierto,
     this.textoReconocido,
     this.origen = 'tarjetas',
+    this.puntuacion,
   });
 
   final int? id;
@@ -14,6 +15,7 @@ class Intento {
   final bool acierto;
   final String? textoReconocido;
   final String origen;
+  final int? puntuacion;
 
   Map<String, Object?> toMap() => {
     'id': id,
@@ -22,6 +24,7 @@ class Intento {
     'acierto': acierto ? 1 : 0,
     'texto_reconocido': textoReconocido,
     'origen': origen,
+    'puntuacion': puntuacion,
   };
 
   factory Intento.fromMap(Map<String, Object?> map) => Intento(
@@ -31,5 +34,6 @@ class Intento {
     acierto: map['acierto'] == 1,
     textoReconocido: map['texto_reconocido'] as String?,
     origen: map['origen'] as String? ?? 'tarjetas',
+    puntuacion: map['puntuacion'] as int?,
   );
 }

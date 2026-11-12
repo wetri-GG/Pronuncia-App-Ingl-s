@@ -1,8 +1,8 @@
 # Evidencia de SQLite en DB Browser
 
-La base de demostracion `pronuncia-demo.db` contiene solo datos sinteticos.
-Incluye intentos de tarjetas, voz, dedos y poses, además de un tema sin
-intentos para comprobar que el `LEFT JOIN` conserva temas vacios.
+La base de demostracion `pronuncia-demo-v5.db` contiene solo datos sinteticos.
+Incluye intentos de tarjetas, voz, pronunciacion, dedos y poses, además de un
+tema sin intentos para comprobar que el `LEFT JOIN` conserva temas vacios.
 
 ## Regenerar la base
 
@@ -13,7 +13,7 @@ dart run tool/crear_bd_demo.dart
 ```
 
 El comando no sobrescribe una base existente. Para regenerarla, mueve o
-renombra primero `pronuncia-demo.db`, o indica otra ruta:
+renombra primero `pronuncia-demo-v5.db`, o indica otra ruta:
 
 ```powershell
 dart run tool/crear_bd_demo.dart evidencias/db-browser/pronuncia-demo-nueva.db
@@ -21,8 +21,9 @@ dart run tool/crear_bd_demo.dart evidencias/db-browser/pronuncia-demo-nueva.db
 
 ## Revisar en DB Browser for SQLite
 
-1. Abre `evidencias/db-browser/pronuncia-demo.db`.
-2. En **Browse Data**, revisa las tablas `temas`, `palabras` e `intentos`.
+1. Abre `evidencias/db-browser/pronuncia-demo-v5.db`.
+2. En **Browse Data**, revisa las tablas `temas`, `palabras` e `intentos`;
+   `intentos.puntuacion` conserva la puntuacion 0–100 del medidor.
 3. En **Execute SQL**, ejecuta las consultas siguientes y captura la ventana
    con la base y los resultados visibles para adjuntarla a la memoria.
 
@@ -61,9 +62,36 @@ ORDER BY fallos DESC, p.ingles COLLATE NOCASE
 LIMIT 5;
 ```
 
+### Progreso y finalización de temas
+
+Una palabra se considera dominada si tiene al menos un intento acertado. El
+tema está completo cuando todas sus palabras están dominadas; los temas sin
+palabras no se consideran completos.
+
+```sql
+SELECT
+  t.nombre AS tema,
+  COUNT(DISTINCT p.id) AS total_palabras,
+  COUNT(DISTINCT CASE WHEN i.id IS NOT NULL THEN p.id END)
+    AS palabras_dominadas,
+  CASE
+    WHEN COUNT(DISTINCT p.id) > 0
+      AND COUNT(DISTINCT p.id) =
+        COUNT(DISTINCT CASE WHEN i.id IS NOT NULL THEN p.id END)
+    THEN 1
+    ELSE 0
+  END AS completado
+FROM temas t
+LEFT JOIN palabras p ON p.tema_id = t.id
+LEFT JOIN intentos i ON i.palabra_id = p.id AND i.acierto = 1
+GROUP BY t.id, t.nombre
+ORDER BY t.nombre;
+```
+
 La aplicacion ejecuta las consultas equivalentes desde
 `lib/data/intento_repository.dart`; sus resultados se muestran en la pantalla
-de Estadisticas.
+de Estadisticas y Temas. El progreso se deriva del historial para evitar
+duplicar datos que podrían quedar desincronizados.
 
 ## Evidencias y modelo ER
 

@@ -8,6 +8,33 @@ class IntentoRepository {
 
   final DatabaseHelper _databaseHelper;
 
+  Future<List<({int temaId, int totalPalabras, int palabrasDominadas})>>
+  obtenerProgresoPorTema() async {
+    final db = await _databaseHelper.database;
+    final filas = await db.rawQuery('''
+      SELECT
+        t.id AS tema_id,
+        COUNT(DISTINCT p.id) AS total_palabras,
+        COUNT(DISTINCT CASE WHEN i.id IS NOT NULL THEN p.id END)
+          AS palabras_dominadas
+      FROM temas t
+      LEFT JOIN palabras p ON p.tema_id = t.id
+      LEFT JOIN intentos i
+        ON i.palabra_id = p.id AND i.acierto = 1
+      GROUP BY t.id, t.nombre
+      ORDER BY t.nombre
+    ''');
+    return filas
+        .map(
+          (fila) => (
+            temaId: fila['tema_id'] as int,
+            totalPalabras: fila['total_palabras'] as int,
+            palabrasDominadas: fila['palabras_dominadas'] as int,
+          ),
+        )
+        .toList();
+  }
+
   Future<List<({int temaId, int intentos, int aciertos})>>
   obtenerEstadisticasPorTema() async {
     final db = await _databaseHelper.database;

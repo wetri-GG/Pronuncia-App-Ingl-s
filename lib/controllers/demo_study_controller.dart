@@ -29,6 +29,7 @@ class DemoStudyController extends ChangeNotifier {
   final Map<int, List<Intento>> _intentosPorTema = {};
   Map<int, ({int intentos, int aciertos})> _estadisticasPorTema = {};
   List<({Palabra palabra, int fallos})> _palabrasMasFalladas = [];
+  Map<int, ({int totalPalabras, int palabrasDominadas})> _progresoPorTema = {};
   bool isLoading = false;
   Object? error;
 
@@ -75,6 +76,38 @@ class DemoStudyController extends ChangeNotifier {
     final estadistica = _estadisticasPorTema[tema.id];
     if (estadistica == null || estadistica.intentos == 0) return 0;
     return (estadistica.aciertos * 100 / estadistica.intentos).round();
+  }
+
+  ({int totalPalabras, int palabrasDominadas}) progresoTema(Tema tema) {
+    final id = tema.id;
+    if (id == null) return (totalPalabras: 0, palabrasDominadas: 0);
+    return _progresoPorTema[id] ??
+        (
+          totalPalabras: _palabrasPorTema[id]?.length ?? 0,
+          palabrasDominadas: 0,
+        );
+  }
+
+  bool temaCompletado(Tema tema) {
+    final progreso = progresoTema(tema);
+    return progreso.totalPalabras > 0 &&
+        progreso.palabrasDominadas == progreso.totalPalabras;
+  }
+
+  int? ultimaPuntuacionPronunciacion(Palabra palabra) {
+    final intentos = _intentosPorTema[palabra.temaId] ?? const <Intento>[];
+    Intento? ultimo;
+    for (final intento in intentos) {
+      if (intento.palabraId != palabra.id ||
+          intento.origen != 'pronunciacion' ||
+          intento.puntuacion == null) {
+        continue;
+      }
+      if (ultimo == null || intento.fecha.isAfter(ultimo.fecha)) {
+        ultimo = intento;
+      }
+    }
+    return ultimo?.puntuacion;
   }
 
   Future<void> cargar() async {
@@ -137,6 +170,7 @@ class DemoStudyController extends ChangeNotifier {
       _palabrasPorTema[id] = [];
       _intentosPorTema[id] = [];
       _estadisticasPorTema[id] = (intentos: 0, aciertos: 0);
+      _progresoPorTema[id] = (totalPalabras: 0, palabrasDominadas: 0);
     }
 
     final existentes = _palabrasPorTema[tema.id] ?? const <Palabra>[];
@@ -156,6 +190,7 @@ class DemoStudyController extends ChangeNotifier {
       espanol: spanish,
     );
     _palabrasPorTema[tema.id]!.add(palabra);
+    await _cargarAgregados();
     notifyListeners();
     return palabra;
   }
@@ -167,6 +202,7 @@ class DemoStudyController extends ChangeNotifier {
     _palabrasPorTema[id] = [];
     _intentosPorTema[id] = [];
     _estadisticasPorTema[id] = (intentos: 0, aciertos: 0);
+    _progresoPorTema[id] = (totalPalabras: 0, palabrasDominadas: 0);
     notifyListeners();
   }
 
@@ -197,6 +233,7 @@ class DemoStudyController extends ChangeNotifier {
         espanol: limpiaEspanol,
       ),
     );
+    await _cargarAgregados();
     notifyListeners();
   }
 
@@ -205,7 +242,15 @@ class DemoStudyController extends ChangeNotifier {
     required bool conocida,
     String origen = 'tarjetas',
     String? textoReconocido,
+    int? puntuacion,
   }) async {
+    if (puntuacion != null && (puntuacion < 0 || puntuacion > 100)) {
+      throw ArgumentError.value(
+        puntuacion,
+        'puntuacion',
+        'Debe estar entre 0 y 100.',
+      );
+    }
     final palabraId = palabra.id;
     if (palabraId == null) {
       throw ArgumentError(
@@ -219,6 +264,7 @@ class DemoStudyController extends ChangeNotifier {
       acierto: conocida,
       textoReconocido: textoReconocido,
       origen: origen,
+      puntuacion: puntuacion,
     );
     final id = await _intentoRepository.crear(intento);
     final intentos = _intentosPorTema[palabra.temaId];
@@ -233,6 +279,7 @@ class DemoStudyController extends ChangeNotifier {
         acierto: intento.acierto,
         textoReconocido: intento.textoReconocido,
         origen: intento.origen,
+        puntuacion: intento.puntuacion,
       ),
     );
     await _cargarAgregados();
@@ -243,6 +290,7 @@ class DemoStudyController extends ChangeNotifier {
     final estadisticas = await _intentoRepository.obtenerEstadisticasPorTema();
     final palabrasFalladas = await _intentoRepository
         .obtenerPalabrasMasFalladas();
+    final progresoPorTema = await _intentoRepository.obtenerProgresoPorTema();
     _estadisticasPorTema = {
       for (final estadistica in estadisticas)
         estadistica.temaId: (
@@ -251,5 +299,12 @@ class DemoStudyController extends ChangeNotifier {
         ),
     };
     _palabrasMasFalladas = palabrasFalladas;
+    _progresoPorTema = {
+      for (final progreso in progresoPorTema)
+        progreso.temaId: (
+          totalPalabras: progreso.totalPalabras,
+          palabrasDominadas: progreso.palabrasDominadas,
+        ),
+    };
   }
 }

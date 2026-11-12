@@ -126,7 +126,19 @@ void main() {
     for (var index = 0; index < 5; index++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    await tester.pumpAndSettle();
+  }
+
+  Future<void> pumpUntilFound(WidgetTester tester, Finder finder) async {
+    for (var attempt = 0; attempt < 20; attempt++) {
+      if (finder.evaluate().isNotEmpty) {
+        return;
+      }
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    fail('No se encontró el widget esperado: $finder');
   }
 
   test('una base nueva incluye vocabulario y empieza sin intentos', () async {
@@ -148,6 +160,11 @@ void main() {
     );
     expect(controller.totalIntentos, 0);
     expect(controller.porcentajeGlobal, 0);
+    expect(controller.progresoTema(controller.temas.first), (
+      totalPalabras: 4,
+      palabrasDominadas: 0,
+    ));
+    expect(controller.temaCompletado(controller.temas.first), isFalse);
     expect(
       controller.temas.every((tema) {
         return controller.porcentajeAcierto(tema) == 0;
@@ -168,6 +185,7 @@ void main() {
       );
       final perro = controller.palabrasDe(animales).first;
       expect(controller.porcentajeAcierto(animales), 80);
+      expect(controller.temaCompletado(animales), isTrue);
 
       await controller.registrarRespuesta(
         perro,
@@ -181,6 +199,53 @@ void main() {
         (item) => item.palabra.ingles == 'Dog',
       );
       expect(perroFallado.fallos, 2);
+    },
+  );
+
+  test(
+    'el progreso del tema persiste y se reinicia al añadir una palabra',
+    () async {
+      final controller = DemoStudyController(databaseHelper: databaseHelper);
+      await controller.cargar();
+      final temaId = await temaRepository.crear(const Tema(nombre: 'Prueba'));
+      final primeraId = await palabraRepository.crear(
+        Palabra(temaId: temaId, ingles: 'one', espanol: 'uno'),
+      );
+      final segundaId = await palabraRepository.crear(
+        Palabra(temaId: temaId, ingles: 'two', espanol: 'dos'),
+      );
+      await controller.cargar();
+
+      final tema = controller.temaPorId(temaId)!;
+      final primeraPalabra = await palabraRepository.obtenerPorId(primeraId);
+      await controller.registrarRespuesta(primeraPalabra!, conocida: true);
+      expect(controller.progresoTema(tema), (
+        totalPalabras: 2,
+        palabrasDominadas: 1,
+      ));
+      expect(controller.temaCompletado(tema), isFalse);
+
+      final segundaPalabra = await palabraRepository.obtenerPorId(segundaId);
+      await controller.registrarRespuesta(segundaPalabra!, conocida: true);
+      expect(controller.temaCompletado(tema), isTrue);
+
+      await controller.agregarPalabra(
+        temaId: temaId,
+        ingles: 'three',
+        espanol: 'tres',
+      );
+      expect(controller.progresoTema(tema), (
+        totalPalabras: 3,
+        palabrasDominadas: 2,
+      ));
+      expect(controller.temaCompletado(tema), isFalse);
+
+      final reloaded = DemoStudyController(databaseHelper: databaseHelper);
+      await reloaded.cargar();
+      expect(reloaded.progresoTema(reloaded.temaPorId(temaId)!), (
+        totalPalabras: 3,
+        palabrasDominadas: 2,
+      ));
     },
   );
 
@@ -226,6 +291,7 @@ void main() {
 
     await tester.tap(find.text('Lo sé'));
     await pumpDatabase(tester);
+    await pumpUntilFound(tester, find.text('Cat'));
     expect(find.text('Cat'), findsOneWidget);
     expect(find.text('2 / 4'), findsOneWidget);
 
@@ -245,6 +311,7 @@ void main() {
 
     await tester.tap(find.text('No lo sé'));
     await pumpDatabase(tester);
+    await pumpUntilFound(tester, find.text('Bird'));
     expect(find.text('Bird'), findsOneWidget);
     expect(find.text('3 / 4'), findsOneWidget);
   });
@@ -272,7 +339,7 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
     expect(find.text('Viajes'), findsOneWidget);
-    expect(find.text('0 palabras'), findsOneWidget);
+    expect(find.textContaining('0 palabras'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await pumpApp(tester);
@@ -301,6 +368,7 @@ void main() {
     );
     await tester.tap(find.text('Guardar palabra'));
     await pumpDatabase(tester);
+    await pumpUntilFound(tester, find.text('Horse'));
 
     expect(find.text('Horse'), findsOneWidget);
     expect(find.text('Caballo'), findsOneWidget);
@@ -430,6 +498,7 @@ void main() {
     await tester.tap(find.text('Medir y guardar respuesta'));
     await pumpDatabase(tester);
 
+    await pumpUntilFound(tester, find.text('100%'));
     expect(find.text('100%'), findsOneWidget);
     final savedAttempts = await tester.runAsync(
       () async => (await intentoRepository.obtenerTodos())
@@ -439,6 +508,15 @@ void main() {
     expect(savedAttempts, hasLength(1));
     expect(savedAttempts!.single.textoReconocido, 'Dog');
     expect(savedAttempts.single.acierto, isTrue);
+    expect(savedAttempts.single.puntuacion, 100);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await pumpApp(tester);
+    await scrollHomeTo(tester, 'Medidor de pronunciación');
+    await tester.tap(find.text('Medidor de pronunciación'));
+    await tester.pumpAndSettle();
+    expect(find.text('100%'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();

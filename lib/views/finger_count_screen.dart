@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 
 import '../controllers/app_settings_controller.dart';
 import '../controllers/demo_study_controller.dart';
+import '../utils/finger_count_assessment.dart';
 
 class FingerCountScreen extends StatefulWidget {
   const FingerCountScreen({super.key});
@@ -23,17 +24,22 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
   CameraController? _cameraController;
   HandLandmarkerPlugin? _handLandmarker;
   StreamSubscription<List<Hand>>? _landmarkSubscription;
+  Timer? _noHandTimer;
   final FlutterTts _tts = FlutterTts();
   List<Hand> _hands = const [];
+  final List<int> _recentCounts = [];
   int? _detectedCount;
   int _manualCount = 0;
   String? _error;
   bool _isInitializing = true;
   bool _isSaving = false;
+  bool _usingAutoDetection = true;
+  DateTime _lastLandmarkUpdate = DateTime.fromMillisecondsSinceEpoch(0);
 
   bool get _hasHandCamera => defaultTargetPlatform == TargetPlatform.android;
 
-  int get _selectedCount => _detectedCount ?? _manualCount;
+  int get _selectedCount =>
+      _usingAutoDetection ? (_detectedCount ?? _manualCount) : _manualCount;
 
   @override
   void initState() {
@@ -47,6 +53,7 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
 
   @override
   void dispose() {
+    _noHandTimer?.cancel();
     _landmarkSubscription?.cancel();
     _cameraController?.stopImageStream();
     _cameraController?.dispose();
@@ -98,8 +105,12 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
                           Align(
                             alignment: Alignment.topCenter,
                             child: _CountBadge(
-                              count: _detectedCount,
-                              isDetected: _detectedCount != null,
+                              count: _usingAutoDetection
+                                  ? _detectedCount
+                                  : _manualCount,
+                              isDetected:
+                                  _usingAutoDetection && _detectedCount != null,
+                              isManual: !_usingAutoDetection,
                             ),
                           ),
                         ],
@@ -133,14 +144,28 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
               11,
               (number) => ChoiceChip(
                 label: Text('$number'),
-                selected: _detectedCount == null && _manualCount == number,
+                selected: !_usingAutoDetection && _manualCount == number,
                 onSelected: (_) => setState(() {
-                  _detectedCount = null;
+                  _usingAutoDetection = false;
                   _manualCount = number;
                 }),
               ),
             ),
           ),
+          if (_hasHandCamera && !_usingAutoDetection)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => setState(() {
+                  _usingAutoDetection = true;
+                  _detectedCount = _recentCounts.isEmpty
+                      ? null
+                      : _mostFrequentCount(_recentCounts);
+                }),
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: const Text('Volver a detección automática'),
+              ),
+            ),
           const SizedBox(height: 20),
           Card(
             child: Padding(
@@ -177,6 +202,9 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
   }
 
   Future<void> _initializeCamera() async {
+    CameraController? cameraController;
+    HandLandmarkerPlugin? landmarker;
+    StreamSubscription<List<Hand>>? subscription;
     try {
       final permission = await Permission.camera.request();
       if (!permission.isGranted) {
@@ -191,35 +219,21 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
         (description) => description.lensDirection == CameraLensDirection.front,
         orElse: () => cameras.first,
       );
-      final controller = CameraController(
+      cameraController = CameraController(
         camera,
         ResolutionPreset.medium,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
-      await controller.initialize();
+      await cameraController.initialize();
 
-      final landmarker = HandLandmarkerPlugin.create(
+      landmarker = HandLandmarkerPlugin.create(
         numHands: 2,
-        minHandDetectionConfidence: 0.65,
+        minHandDetectionConfidence: 0.55,
         delegate: HandLandmarkerDelegate.cpu,
       );
-      final subscription = landmarker.landmarkStream.listen(
-        (hands) {
-          if (!mounted) return;
-          setState(() {
-            _hands = hands;
-            _detectedCount = hands.isEmpty
-                ? null
-                : hands
-                      .fold<int>(
-                        0,
-                        (total, hand) => total + _countRaisedFingers(hand),
-                      )
-                      .clamp(0, 10)
-                      .toInt();
-          });
-        },
+      subscription = landmarker.landmarkStream.listen(
+        _onLandmarks,
         onError: (Object error) {
           if (mounted) {
             setState(() => _error = 'Error detectando la mano: $error');
@@ -227,20 +241,29 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
         },
       );
 
-      _cameraController = controller;
-      _handLandmarker = landmarker;
-      _landmarkSubscription = subscription;
-      await controller.startImageStream((image) {
+      await cameraController.startImageStream((image) {
         try {
-          landmarker.processFrame(image, camera.sensorOrientation);
+          landmarker!.processFrame(image, camera.sensorOrientation);
         } catch (error) {
-          if (mounted) {
+          if (mounted && _error == null) {
             setState(() => _error = 'No se pudo analizar la imagen: $error');
           }
         }
       });
-      if (mounted) setState(() => _isInitializing = false);
+      if (!mounted) {
+        await subscription.cancel();
+        await cameraController.dispose();
+        landmarker.dispose();
+        return;
+      }
+      _cameraController = cameraController;
+      _handLandmarker = landmarker;
+      _landmarkSubscription = subscription;
+      setState(() => _isInitializing = false);
     } catch (error) {
+      await subscription?.cancel();
+      await cameraController?.dispose();
+      landmarker?.dispose();
       if (!mounted) return;
       setState(() {
         _error = error.toString();
@@ -249,24 +272,66 @@ class _FingerCountScreenState extends State<FingerCountScreen> {
     }
   }
 
-  int _countRaisedFingers(Hand hand) {
-    final landmarks = hand.landmarks;
-    if (landmarks.length < 21) return 0;
+  void _onLandmarks(List<Hand> hands) {
+    if (!mounted) return;
+    final now = DateTime.now();
+    if (now.difference(_lastLandmarkUpdate) <
+        const Duration(milliseconds: 50)) {
+      return;
+    }
+    _lastLandmarkUpdate = now;
 
-    var count = 0;
-    if (_distance(landmarks[4], landmarks[5]) >
-        _distance(landmarks[3], landmarks[5]) * 1.15) {
-      count++;
+    if (hands.isEmpty) {
+      setState(() => _hands = const []);
+      _noHandTimer ??= Timer(const Duration(milliseconds: 500), () {
+        _noHandTimer = null;
+        if (!mounted) return;
+        setState(() {
+          _detectedCount = null;
+          _recentCounts.clear();
+        });
+      });
+      return;
     }
-    for (final (tip, joint) in [(8, 6), (12, 10), (16, 14), (20, 18)]) {
-      if (landmarks[tip].y < landmarks[joint].y) count++;
-    }
-    return count.clamp(0, 5);
+
+    _noHandTimer?.cancel();
+    _noHandTimer = null;
+    final frameCount = hands
+        .fold<int>(
+          0,
+          (total, hand) => total + countRaisedFingers(hand.landmarks),
+        )
+        .clamp(0, 10)
+        .toInt();
+    _recentCounts.add(frameCount);
+    if (_recentCounts.length > 5) _recentCounts.removeAt(0);
+
+    setState(() {
+      _hands = hands;
+      if (_usingAutoDetection) {
+        _detectedCount = _mostFrequentCount(_recentCounts);
+      }
+    });
   }
 
-  double _distance(Landmark first, Landmark second) => math.sqrt(
-    math.pow(first.x - second.x, 2) + math.pow(first.y - second.y, 2),
-  );
+  int _mostFrequentCount(List<int> counts) {
+    final frequencies = <int, int>{};
+    for (final count in counts) {
+      frequencies.update(
+        count,
+        (frequency) => frequency + 1,
+        ifAbsent: () => 1,
+      );
+    }
+
+    var mostFrequent = counts.last;
+    for (final count in counts.reversed) {
+      if (frequencies[count]! > frequencies[mostFrequent]!) {
+        mostFrequent = count;
+      }
+    }
+    return mostFrequent;
+  }
 
   Future<void> _saveAttempt() async {
     final english = _numberInEnglish(_selectedCount);
@@ -368,10 +433,15 @@ class _PlatformNotice extends StatelessWidget {
 }
 
 class _CountBadge extends StatelessWidget {
-  const _CountBadge({required this.count, required this.isDetected});
+  const _CountBadge({
+    required this.count,
+    required this.isDetected,
+    required this.isManual,
+  });
 
   final int? count;
   final bool isDetected;
+  final bool isManual;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -379,7 +449,11 @@ class _CountBadge extends StatelessWidget {
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: Text(
-        isDetected ? 'Detectados: $count' : 'Muestra una mano a la cámara',
+        isManual
+            ? 'Selección manual: $count'
+            : isDetected
+            ? 'Detectados: $count'
+            : 'Muestra una mano a la cámara',
       ),
     ),
   );

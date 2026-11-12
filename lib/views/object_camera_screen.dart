@@ -1,9 +1,14 @@
 import 'package:ar_flutter_plugin_2/ar_flutter_plugin.dart';
+import 'package:ar_flutter_plugin_2/datatypes/hittest_result_types.dart';
+import 'package:ar_flutter_plugin_2/datatypes/node_types.dart';
 import 'package:ar_flutter_plugin_2/datatypes/config_planedetection.dart';
 import 'package:ar_flutter_plugin_2/managers/ar_anchor_manager.dart';
 import 'package:ar_flutter_plugin_2/managers/ar_location_manager.dart';
 import 'package:ar_flutter_plugin_2/managers/ar_object_manager.dart';
 import 'package:ar_flutter_plugin_2/managers/ar_session_manager.dart';
+import 'package:ar_flutter_plugin_2/models/ar_anchor.dart';
+import 'package:ar_flutter_plugin_2/models/ar_hittest_result.dart';
+import 'package:ar_flutter_plugin_2/models/ar_node.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +16,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:vector_math/vector_math_64.dart';
 
 import '../controllers/app_settings_controller.dart';
 
@@ -24,6 +30,9 @@ class ObjectCameraScreen extends StatefulWidget {
 class _ObjectCameraScreenState extends State<ObjectCameraScreen> {
   CameraController? _cameraController;
   ARSessionManager? _arSessionManager;
+  ARAnchorManager? _arAnchorManager;
+  ARObjectManager? _arObjectManager;
+  ARPlaneAnchor? _placedAnchor;
   final FlutterTts _tts = FlutterTts();
   String? _englishLabel;
   String? _spanishLabel;
@@ -32,7 +41,10 @@ class _ObjectCameraScreenState extends State<ObjectCameraScreen> {
   String? _error;
   bool _isInitializing = true;
   bool _isScanning = false;
+  bool _isPlacing = false;
   bool _showAr = false;
+  int _detectedPlaneCount = 0;
+  String _arStatus = 'Mueve el móvil despacio para buscar una superficie.';
 
   bool get _supportsMobileVision =>
       defaultTargetPlatform == TargetPlatform.android ||
@@ -138,7 +150,7 @@ class _ObjectCameraScreenState extends State<ObjectCameraScreen> {
         ),
         if (_englishLabel != null)
           Align(
-            alignment: const Alignment(0, -0.15),
+            alignment: const Alignment(0, -0.55),
             child: IgnorePointer(
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -177,12 +189,25 @@ class _ObjectCameraScreenState extends State<ObjectCameraScreen> {
               ),
             ),
           ),
-        const Positioned(
+        Positioned(
           left: 16,
           right: 16,
           bottom: 18,
-          child: _MessagePanel(
-            message: 'Apunta a una superficie plana. La traducción aparece sobre la cámara.',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _MessagePanel(
+                message: _englishLabel == null
+                    ? 'Identifica primero un objeto en la vista Cámara.'
+                    : _arStatus,
+              ),
+              if (_placedAnchor != null)
+                TextButton.icon(
+                  onPressed: _isPlacing ? null : _removePlacedObject,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Quitar objeto'),
+                ),
+            ],
           ),
         ),
       ],
@@ -319,7 +344,7 @@ class _ObjectCameraScreenState extends State<ObjectCameraScreen> {
       _error = null;
     });
     final labeler = ImageLabeler(
-      options: ImageLabelerOptions(confidenceThreshold: 0.25),
+      options: ImageLabelerOptions(confidenceThreshold: 0.45),
     );
     try {
       final file = await controller.takePicture();
@@ -357,11 +382,7 @@ class _ObjectCameraScreenState extends State<ObjectCameraScreen> {
           );
         }
         final filteredCandidates = distinctCandidates.values.take(5).toList();
-        final mostUseful = filteredCandidates.firstWhere(
-          (candidate) =>
-              _translations.containsKey(candidate.english.toLowerCase()),
-          orElse: () => filteredCandidates.first,
-        );
+        final mostUseful = filteredCandidates.first;
         setState(() {
           _labels = filteredCandidates;
           _setSelectedLabel(mostUseful);
@@ -394,13 +415,141 @@ class _ObjectCameraScreenState extends State<ObjectCameraScreen> {
     ARLocationManager locationManager,
   ) {
     _arSessionManager = sessionManager;
+    _arAnchorManager = anchorManager;
+    _arObjectManager = objectManager;
+    _arStatus = 'Mueve el móvil despacio para buscar una superficie.';
+    sessionManager.onError = (error) {
+      if (!mounted) return;
+      setState(() => _arStatus = 'Error de realidad aumentada: $error');
+    };
+    sessionManager.onPlaneDetected = (planeCount) {
+      if (!mounted) return;
+      setState(() {
+        _detectedPlaneCount = planeCount;
+        _arStatus = planeCount == 0
+            ? 'Buscando superficies… mueve el móvil despacio.'
+            : 'Superficie detectada. Tócala para colocar el objeto.';
+      });
+    };
+    sessionManager.onPlaneOrPointTap = _placeObjectOnPlane;
     sessionManager.onInitialize(
       showFeaturePoints: false,
       showPlanes: true,
       showWorldOrigin: false,
-      handleTaps: false,
+      handleTaps: true,
     );
     objectManager.onInitialize();
+  }
+
+  Future<void> _placeObjectOnPlane(List<ARHitTestResult> hitResults) async {
+    if (!mounted) return;
+    if (_isPlacing || _placedAnchor != null) return;
+    final anchorManager = _arAnchorManager;
+    final objectManager = _arObjectManager;
+    if (_englishLabel == null ||
+        anchorManager == null ||
+        objectManager == null) {
+      if (mounted) {
+        setState(() => _arStatus = 'Identifica un objeto antes de colocarlo.');
+      }
+      return;
+    }
+
+    ARHitTestResult? planeHit;
+    for (final hit in hitResults) {
+      if (hit.type == ARHitTestResultType.plane) {
+        planeHit = hit;
+        break;
+      }
+    }
+    if (planeHit == null) {
+      if (mounted) {
+        setState(
+          () => _arStatus = 'No se encontró una superficie. Toca otra vez.',
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isPlacing = true;
+      _arStatus = 'Colocando $_englishLabel…';
+    });
+
+    final anchor = ARPlaneAnchor(transformation: planeHit.worldTransform);
+    ARPlaneAnchor? pendingAnchor;
+    try {
+      final anchorAdded = await anchorManager.addAnchor(anchor);
+      if (anchorAdded != true) {
+        throw StateError('No se pudo fijar el objeto a la superficie.');
+      }
+      pendingAnchor = anchor;
+
+      final node = ARNode(
+        type: NodeType.localGLTF2,
+        uri: 'assets/models/pronuncia_marker.gltf',
+        name: 'pronuncia_marker_${DateTime.now().microsecondsSinceEpoch}',
+        position: Vector3(0, 0.07, 0),
+        scale: Vector3.all(0.12),
+      );
+      final nodeAdded = await objectManager.addNode(node, planeAnchor: anchor);
+      if (nodeAdded != true) {
+        throw StateError('No se pudo añadir el marcador 3D.');
+      }
+
+      if (!mounted) {
+        await anchorManager.removeAnchor(anchor);
+        return;
+      }
+      setState(() {
+        _placedAnchor = anchor;
+        _arStatus = '$_englishLabel colocado en la superficie.';
+      });
+      pendingAnchor = null;
+    } catch (error) {
+      var errorMessage = error.toString();
+      if (pendingAnchor != null) {
+        try {
+          await anchorManager.removeAnchor(pendingAnchor);
+        } catch (cleanupError) {
+          errorMessage = '$error No se pudo retirar el ancla: $cleanupError';
+        }
+      }
+      if (mounted) {
+        setState(
+          () => _arStatus = 'No se pudo colocar el objeto: $errorMessage',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPlacing = false);
+    }
+  }
+
+  Future<void> _removePlacedObject() async {
+    final anchor = _placedAnchor;
+    final anchorManager = _arAnchorManager;
+    if (anchor == null || anchorManager == null) return;
+
+    setState(() {
+      _isPlacing = true;
+      _arStatus = 'Quitando el objeto…';
+    });
+    try {
+      await anchorManager.removeAnchor(anchor);
+      if (!mounted) return;
+      setState(() {
+        _placedAnchor = null;
+        _arStatus = _detectedPlaneCount > 0
+            ? 'Superficie detectada. Tócala para colocar el objeto.'
+            : 'Mueve el móvil despacio para buscar una superficie.';
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() => _arStatus = 'No se pudo quitar el objeto: $error');
+      }
+    } finally {
+      if (mounted) setState(() => _isPlacing = false);
+    }
   }
 
   Future<void> _toggleView(bool showAr) async {
@@ -410,18 +559,30 @@ class _ObjectCameraScreenState extends State<ObjectCameraScreen> {
       setState(() => _error = 'La realidad aumentada requiere Android o iOS.');
       return;
     }
-    setState(() {
-      _error = null;
-      _showAr = showAr;
-    });
     if (showAr) {
       await _cameraController?.dispose();
       _cameraController = null;
-      _isInitializing = false;
+      if (!mounted) return;
+      setState(() {
+        _error = null;
+        _showAr = true;
+        _detectedPlaneCount = 0;
+        _arStatus = _englishLabel == null
+            ? 'Identifica primero un objeto en la vista Cámara.'
+            : 'Mueve el móvil despacio para buscar una superficie.';
+      });
     } else {
+      await _removePlacedObject();
       await _arSessionManager?.dispose();
       _arSessionManager = null;
-      setState(() => _isInitializing = true);
+      _arAnchorManager = null;
+      _arObjectManager = null;
+      if (!mounted) return;
+      setState(() {
+        _error = null;
+        _showAr = false;
+        _isInitializing = true;
+      });
       await _initializeCamera();
     }
   }

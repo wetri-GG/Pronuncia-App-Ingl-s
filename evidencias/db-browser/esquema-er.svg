@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="760" viewBox="0 0 1500 760" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="780" viewBox="0 0 1500 780" role="img" aria-labelledby="title description">
   <title id="title">Esquema entidad-relacion de Pronuncia</title>
   <desc id="description">Diagrama SQLite con las entidades temas, palabras e intentos, relaciones uno a muchos y borrado en cascada.</desc>
   <defs>
@@ -48,7 +48,7 @@
   </g>
 
   <g>
-    <rect class="card" x="1070" y="230" width="360" height="330" rx="12"/>
+    <rect class="card" x="1070" y="230" width="360" height="370" rx="12"/>
     <path class="header" d="M1082 230h336a12 12 0 0 1 12 12v48H1070v-48a12 12 0 0 1 12-12z"/>
     <text class="entity" x="1096" y="271">intentos</text>
     <text class="key" x="1096" y="320">PK</text>
@@ -60,7 +60,8 @@
     <text class="field" x="1096" y="442">acierto · INTEGER NOT NULL</text>
     <text class="field" x="1096" y="479">texto_reconocido · TEXT NULL</text>
     <text class="field" x="1096" y="516">origen · TEXT NOT NULL</text>
-    <text class="note" x="1096" y="542">DEFAULT 'tarjetas'</text>
+    <text class="field" x="1096" y="550">puntuacion · INTEGER NULL · 0..100</text>
+    <text class="note" x="1096" y="578">origen DEFAULT 'tarjetas'</text>
   </g>
 
   <g>
@@ -80,4 +81,5 @@
   <text class="note" x="70" y="650">Relaciones: temas 1:N palabras · palabras 1:N intentos.</text>
   <text class="note" x="70" y="680">Las FK son obligatorias; borrar un tema elimina sus palabras e intentos asociados (ON DELETE CASCADE).</text>
   <text class="note" x="70" y="710">acierto: 1 = acierto, 0 = fallo · texto_reconocido es opcional; origen identifica la actividad.</text>
+  <text class="note" x="70" y="744">puntuacion guarda el resultado del medidor (0..100) · un tema se completa al dominar todas sus palabras.</text>
 </svg>

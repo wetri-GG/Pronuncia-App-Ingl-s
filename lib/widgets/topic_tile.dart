@@ -7,13 +7,17 @@ class TopicTile extends StatelessWidget {
     super.key,
     required this.tema,
     required this.wordCount,
+    required this.masteredWords,
     required this.accuracy,
+    required this.isComplete,
     required this.onTap,
   });
 
   final Tema tema;
   final int wordCount;
+  final int masteredWords;
   final int accuracy;
+  final bool isComplete;
   final VoidCallback onTap;
 
   @override
@@ -69,10 +73,21 @@ class TopicTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$wordCount ${wordCount == 1 ? 'palabra' : 'palabras'}',
+                      '$wordCount ${wordCount == 1 ? 'palabra' : 'palabras'} · '
+                      '$masteredWords dominadas',
                       style: Theme.of(context).textTheme.labelSmall
                           ?.copyWith(color: colorScheme.primary),
                     ),
+                    if (isComplete) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Tema completado',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

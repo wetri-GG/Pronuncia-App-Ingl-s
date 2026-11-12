@@ -32,10 +32,13 @@ class TopicsScreen extends StatelessWidget {
                               const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final tema = temas[index];
+                            final progreso = controller.progresoTema(tema);
                             return TopicTile(
                               tema: tema,
                               wordCount: controller.palabrasDe(tema).length,
+                              masteredWords: progreso.palabrasDominadas,
                               accuracy: controller.porcentajeAcierto(tema),
+                              isComplete: controller.temaCompletado(tema),
                               onTap: () => _openTopic(context, tema),
                             );
                           },

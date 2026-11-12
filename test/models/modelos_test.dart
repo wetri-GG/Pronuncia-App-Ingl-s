@@ -39,6 +39,7 @@ void main() {
       acierto: true,
       textoReconocido: 'cat',
       origen: 'voz',
+      puntuacion: 87,
     );
 
     final map = intento.toMap();
@@ -47,6 +48,7 @@ void main() {
     expect(map['acierto'], 1);
     expect(map['texto_reconocido'], 'cat');
     expect(map['origen'], 'voz');
+    expect(map['puntuacion'], 87);
 
     final recuperado = Intento.fromMap(map);
     expect(recuperado.id, 3);
@@ -55,5 +57,6 @@ void main() {
     expect(recuperado.acierto, isTrue);
     expect(recuperado.textoReconocido, 'cat');
     expect(recuperado.origen, 'voz');
+    expect(recuperado.puntuacion, 87);
   });
 }

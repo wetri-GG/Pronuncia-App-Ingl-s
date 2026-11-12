@@ -26,6 +26,7 @@ class _PronunciationPracticeScreenState
   int? _selectedThemeId;
   int _wordIndex = 0;
   int? _score;
+  int? _scoreWordId;
   bool _isListening = false;
   bool _isSaving = false;
   String? _error;
@@ -57,6 +58,9 @@ class _PronunciationPracticeScreenState
     }
 
     final word = words[_wordIndex % words.length];
+    final displayedScore = _scoreWordId == word.id
+        ? _score
+        : study.ultimaPuntuacionPronunciacion(word);
     return Scaffold(
       appBar: AppBar(title: const Text('Medidor de pronunciación')),
       body: ListView(
@@ -66,14 +70,14 @@ class _PronunciationPracticeScreenState
           const SizedBox(height: 20),
           _TargetWord(word: word, onSpeak: () => _speak(word.ingles)),
           const SizedBox(height: 20),
-          Center(child: PronunciationMeter(score: _score)),
+          Center(child: PronunciationMeter(score: displayedScore)),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: _isSaving
                 ? null
                 : _isListening
                 ? _stopListening
-                : _startListening,
+                : () => _startListening(word),
             icon: Icon(_isListening ? Icons.stop_rounded : Icons.mic_rounded),
             label: Text(_isListening ? 'Detener escucha' : 'Decir la palabra'),
           ),
@@ -87,6 +91,7 @@ class _PronunciationPracticeScreenState
             ),
             onChanged: (_) => setState(() {
               _score = null;
+              _scoreWordId = word.id;
               _error = null;
             }),
           ),
@@ -109,7 +114,7 @@ class _PronunciationPracticeScreenState
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall,
           ),
-          if (_score != null) ...[
+          if (displayedScore != null) ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () => _next(words.length),
@@ -143,13 +148,14 @@ class _PronunciationPracticeScreenState
               _selectedThemeId = themeId;
               _wordIndex = 0;
               _score = null;
+              _scoreWordId = null;
               _answerController.clear();
               _error = null;
             }),
     );
   }
 
-  Future<void> _startListening() async {
+  Future<void> _startListening(Palabra word) async {
     setState(() => _error = null);
     try {
       final available = await _speech.initialize(
@@ -177,6 +183,7 @@ class _PronunciationPracticeScreenState
               offset: _answerController.text.length,
             );
             _score = null;
+            _scoreWordId = word.id;
           });
         },
         listenOptions: SpeechListenOptions(
@@ -226,9 +233,13 @@ class _PronunciationPracticeScreenState
         conocida: score >= 80,
         origen: 'pronunciacion',
         textoReconocido: recognized,
+        puntuacion: score,
       );
       if (!mounted) return;
-      setState(() => _score = score);
+      setState(() {
+        _score = score;
+        _scoreWordId = word.id;
+      });
     } catch (error) {
       if (mounted) {
         setState(() => _error = 'No se pudo guardar el intento: $error');
@@ -255,6 +266,7 @@ class _PronunciationPracticeScreenState
     setState(() {
       _wordIndex = (_wordIndex + 1) % count;
       _score = null;
+      _scoreWordId = null;
       _answerController.clear();
       _error = null;
     });

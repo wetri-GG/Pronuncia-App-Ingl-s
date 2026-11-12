@@ -49,10 +49,13 @@ incluye temas y vocabulario inicial para poder practicar, pero no incluye
 intentos: las estadísticas empiezan en cero y se actualizan al realizar
 actividades. Los usuarios pueden añadir sus propios temas y palabras. Las
 actividades de dedos y Simon Says crean solo la palabra auxiliar correspondiente
-cuando se guarda el primer intento, no al abrir la app. El esquema version 4
-incluye el origen del intento (`tarjetas`, `voz`, `dedos` o `pose`), migra las
-bases existentes y restaura el catálogo inicial en instalaciones que habían
-recibido una versión sin esos temas, sin crear intentos ficticios.
+cuando se guarda el primer intento, no al abrir la app. El esquema version 5
+incluye el origen del intento (`tarjetas`, `voz`, `pronunciacion`, `dedos` o
+`pose`) y añade la puntuación numérica del medidor de pronunciación. Migra las
+bases existentes sin perder intentos; las puntuaciones antiguas quedan nulas
+porque no se pueden reconstruir con exactitud. La migración también restaura el
+catálogo inicial en instalaciones que habían recibido una versión sin esos
+temas, sin crear intentos ficticios.
 
 ### Persistencia de actividades NUI
 
@@ -61,8 +64,16 @@ a la palabra practicada mediante `palabra_id`. `origen` identifica la
 actividad: `tarjetas` para autoevaluación, `voz` para práctica oral, `dedos`
 para conteo manual o detectado y `pose` para Simon Says. La práctica oral
 también guarda el texto reconocido en `texto_reconocido`; el resto de
-actividades deja ese campo nulo. La conversación/traducción no se guarda como
-intento de vocabulario.
+actividades deja ese campo nulo. El medidor guarda su puntuación de 0 a 100 en
+`puntuacion`; los intentos antiguos y el resto de actividades dejan ese campo
+nulo. La conversación/traducción no se guarda como intento de vocabulario.
+
+El dominio de un tema se calcula desde los intentos guardados: una palabra
+queda dominada al tener al menos un intento acertado (`acierto = 1`), y el tema
+se completa cuando todas sus palabras están dominadas. La pantalla de temas
+muestra el progreso; al añadir una palabra, el tema vuelve a estar incompleto
+hasta que esa palabra también tenga un acierto. No se duplica este agregado en
+otra tabla, por lo que permanece consistente con el historial.
 
 `acierto` representa el resultado que comunica cada actividad: autoevaluación
 en tarjetas, comparación de la respuesta en voz, coincidencia de pose o
@@ -81,8 +92,12 @@ falladas cuenta solo intentos con `acierto = 0`.
 - ML Kit para etiquetas de imagen y poses funciona en Android/iOS.
 - MediaPipe `hand_landmarker` funciona en Android; otras plataformas muestran
   una alternativa tactil.
-- La vista de RA usa ARCore/ARKit en Android/iOS. El nombre detectado se
-  presenta como una etiqueta superpuesta a la vista de camara.
+- El conteo de dedos compara la extension de cada dedo respecto al eje de la
+  mano y suaviza las lecturas recientes; la deteccion depende de la posicion,
+  orientacion e iluminacion de la mano.
+- La vista de RA usa ARCore/ARKit en Android/iOS. Tras identificar una etiqueta,
+  se puede tocar un plano detectado para anclar un marcador 3D local; el nombre
+  en ingles y su traduccion se muestran en la vista.
 - Android requiere API 28 (Android 9) por el plugin de realidad aumentada.
 - El reconocimiento de objetos se ejecuta en el dispositivo. Las traducciones
   se resuelven con un diccionario local para las etiquetas conocidas.
@@ -92,8 +107,9 @@ falladas cuenta solo intentos con `acierto = 0`.
 - El medidor de pronunciacion se basa en la coincidencia del texto reconocido;
   no es una evaluacion acustica del acento ni de fonemas.
 - Las preferencias visuales y de velocidad de voz se guardan localmente con
-  `shared_preferences`; los intentos del medidor se guardan en la tabla SQLite
-  existente con origen `pronunciacion`.
+  `shared_preferences`; los intentos del medidor, su puntuación y el texto
+  reconocido se guardan en SQLite con origen `pronunciacion`. Al volver a abrir
+  el medidor se muestra la última puntuación guardada para la palabra actual.
 - Para reducir el tamano de las descargas Android sin quitar funciones, compila
   APKs separados por arquitectura con `flutter build apk --release --split-per-abi`.
 

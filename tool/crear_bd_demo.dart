@@ -6,7 +6,6 @@ import 'package:pronuncia/data/intento_repository.dart';
 import 'package:pronuncia/data/palabra_repository.dart';
 import 'package:pronuncia/data/tema_repository.dart';
 import 'package:pronuncia/models/intento.dart';
-import 'package:pronuncia/models/palabra.dart';
 import 'package:pronuncia/models/tema.dart';
 
 Future<void> main(List<String> arguments) async {
@@ -16,7 +15,7 @@ Future<void> main(List<String> arguments) async {
 
   final databasePath = path.absolute(
     arguments.isEmpty
-        ? path.join('evidencias', 'db-browser', 'pronuncia-demo.db')
+        ? path.join('evidencias', 'db-browser', 'pronuncia-demo-v5.db')
         : arguments.single,
   );
   final databaseFile = File(databasePath);
@@ -31,31 +30,38 @@ Future<void> main(List<String> arguments) async {
     final palabras = PalabraRepository(databaseHelper);
     final intentos = IntentoRepository(databaseHelper);
 
-    final animalesId = await temas.crear(const Tema(nombre: 'Animales'));
-    final comidaId = await temas.crear(const Tema(nombre: 'Comida'));
+    final catalogo = await temas.obtenerTodos();
+    final animales = catalogo.singleWhere((tema) => tema.nombre == 'Animales');
+    final comida = catalogo.singleWhere((tema) => tema.nombre == 'Comida');
+    final animalesId = animales.id!;
+    final comidaId = comida.id!;
     await temas.crear(const Tema(nombre: 'Viajes sin intentos'));
 
-    final gatoId = await palabras.crear(
-      Palabra(temaId: animalesId, ingles: 'cat', espanol: 'gato'),
-    );
-    final perroId = await palabras.crear(
-      Palabra(temaId: animalesId, ingles: 'dog', espanol: 'perro'),
-    );
-    final manzanaId = await palabras.crear(
-      Palabra(temaId: comidaId, ingles: 'apple', espanol: 'manzana'),
-    );
+    final palabrasAnimales = await palabras.obtenerPorTema(animalesId);
+    final palabrasComida = await palabras.obtenerPorTema(comidaId);
+    final gatoId = palabrasAnimales
+        .singleWhere((palabra) => palabra.ingles.toLowerCase() == 'cat')
+        .id!;
+    final perroId = palabrasAnimales
+        .singleWhere((palabra) => palabra.ingles.toLowerCase() == 'dog')
+        .id!;
+    final manzanaId = palabrasComida
+        .singleWhere((palabra) => palabra.ingles.toLowerCase() == 'apple')
+        .id!;
 
     final fecha = DateTime.utc(2026, 11, 10);
-    final List<(int, bool, String, String?)> ejemplos = [
-      (gatoId, false, 'voz', 'kat'),
-      (gatoId, false, 'voz', 'cut'),
-      (gatoId, true, 'voz', 'cat'),
-      (perroId, true, 'tarjetas', null),
-      (manzanaId, false, 'pose', null),
-      (manzanaId, true, 'dedos', null),
+    final List<(int, bool, String, String?, int?)> ejemplos = [
+      (gatoId, false, 'voz', 'kat', null),
+      (gatoId, false, 'voz', 'cut', null),
+      (gatoId, true, 'voz', 'cat', null),
+      (gatoId, true, 'pronunciacion', 'cat', 100),
+      (perroId, true, 'tarjetas', null, null),
+      (manzanaId, false, 'pose', null, null),
+      (manzanaId, true, 'dedos', null, null),
     ];
     for (var index = 0; index < ejemplos.length; index++) {
-      final (palabraId, acierto, origen, textoReconocido) = ejemplos[index];
+      final (palabraId, acierto, origen, textoReconocido, puntuacion) =
+          ejemplos[index];
       await intentos.crear(
         Intento(
           palabraId: palabraId,
@@ -63,6 +69,7 @@ Future<void> main(List<String> arguments) async {
           acierto: acierto,
           origen: origen,
           textoReconocido: textoReconocido,
+          puntuacion: puntuacion,
         ),
       );
     }

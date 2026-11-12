@@ -10,7 +10,7 @@ class DatabaseHelper {
   static bool _ffiFactoryConfigured = false;
 
   static const _databaseName = 'pronuncia.db';
-  static const _databaseVersion = 4;
+  static const _databaseVersion = 5;
   static const _defaultCatalog = {
     'Animales': {
       'Dog': 'Perro',
@@ -82,6 +82,9 @@ class DatabaseHelper {
             acierto INTEGER NOT NULL,
             texto_reconocido TEXT,
             origen TEXT NOT NULL DEFAULT 'tarjetas',
+            puntuacion INTEGER CHECK (
+              puntuacion IS NULL OR puntuacion BETWEEN 0 AND 100
+            ),
             FOREIGN KEY (palabra_id) REFERENCES palabras(id) ON DELETE CASCADE
           )
         ''');
@@ -98,6 +101,14 @@ class DatabaseHelper {
         }
         if (oldVersion < 4) {
           await _insertDefaultCatalog(db);
+        }
+        if (oldVersion < 5) {
+          await db.execute('''
+            ALTER TABLE intentos
+            ADD COLUMN puntuacion INTEGER CHECK (
+              puntuacion IS NULL OR puntuacion BETWEEN 0 AND 100
+            )
+          ''');
         }
       },
     );
